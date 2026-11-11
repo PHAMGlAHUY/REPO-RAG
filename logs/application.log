@@ -1,0 +1,279 @@
+[2026-11-11 19:27:48] INFO - ingestion.load_data - Bắt đầu quét: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.dockerignore
+[2026-11-11 19:27:48] WARNING - ingestion.load_data - Bỏ qua file nhạy cảm: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.env
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.env.example
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.text_chunker - .env.example -> 1 chunk (130 ký tự)
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.gitignore
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\alembic.ini
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.text_chunker - alembic.ini -> 1 chunk (5013 ký tự)
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\crop_debug_0.jpg
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\detector_out.jpg
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\docker-compose.yaml
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.text_chunker - docker-compose.yaml -> 1 chunk (2517 ký tự)
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\Dockerfile
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.text_chunker - Dockerfile -> 1 chunk (2620 ký tự)
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\pipeline_out.jpg
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\pytest.ini
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\requirements.txt
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_crop.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_crop.py -> 1 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_db.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_db.py -> 2 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_detector.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_detector.py -> 1 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_models.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_models.py -> 2 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_ocr.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_ocr.py -> 1 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_pipeline.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_pipeline.py -> 1 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_repo_pg.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_repo_pg.py -> 4 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_schemas.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_schemas.py -> 1 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_yolo.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_yolo.py -> 1 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_yolo_val.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - try_yolo_val.py -> 1 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\yolo_out.jpg
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\config.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/config.py -> 3 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\deps.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/deps.py -> 3 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\main.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/main.py -> 3 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\schemas.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/schemas.py -> 9 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\env.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - migrations/env.py -> 5 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\README
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\script.py.mako
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\conftest.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - tests/conftest.py -> 2 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_api.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - tests/test_api.py -> 14 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_history_api.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - tests/test_history_api.py -> 14 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_ocr.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - tests/test_ocr.py -> 4 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_pipeline.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - tests/test_pipeline.py -> 7 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_plate_format.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - tests/test_plate_format.py -> 2 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_repository.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - tests/test_repository.py -> 9 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_yolo_detector.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - tests/test_yolo_detector.py -> 6 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\versions\9ea2fc90101a_create_recognition_tables.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - migrations/versions/9ea2fc90101a_create_recognition_tables.py -> 3 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\api\history.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/api/history.py -> 7 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\api\routes.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/api/routes.py -> 4 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\base.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/db/base.py -> 2 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\models.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/db/models.py -> 3 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\repository.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/db/repository.py -> 6 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\session.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/db/session.py -> 3 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\detector.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/services/detector.py -> 5 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\factory.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/services/factory.py -> 2 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\history.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/services/history.py -> 2 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\ocr.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/services/ocr.py -> 5 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\pipeline.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/services/pipeline.py -> 6 chunk
+[2026-11-11 19:27:48] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\plate_format.py
+[2026-11-11 19:27:48] DEBUG - ingestion.chunking.python_chunker - app/services/plate_format.py -> 3 chunk
+[2026-11-11 19:27:48] INFO - ingestion.load_data - Quét xong: giữ 40 file, bỏ qua 170 file
+[2026-11-11 20:36:35] INFO - ingestion.load_data - Bắt đầu quét: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.dockerignore
+[2026-11-11 20:36:35] WARNING - ingestion.load_data - Bỏ qua file nhạy cảm: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.env
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.env.example
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.text_chunker - .env.example -> 1 chunk (130 ký tự)
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.gitignore
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\alembic.ini
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.text_chunker - alembic.ini -> 1 chunk (5013 ký tự)
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\crop_debug_0.jpg
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\detector_out.jpg
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\docker-compose.yaml
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.text_chunker - docker-compose.yaml -> 1 chunk (2517 ký tự)
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\Dockerfile
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.text_chunker - Dockerfile -> 1 chunk (2620 ký tự)
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\pipeline_out.jpg
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\pytest.ini
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\requirements.txt
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_crop.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_crop.py -> 1 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_db.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_db.py -> 2 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_detector.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_detector.py -> 1 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_models.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_models.py -> 2 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_ocr.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_ocr.py -> 1 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_pipeline.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_pipeline.py -> 1 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_repo_pg.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_repo_pg.py -> 4 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_schemas.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_schemas.py -> 1 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_yolo.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_yolo.py -> 1 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_yolo_val.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - try_yolo_val.py -> 1 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\yolo_out.jpg
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\config.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - app/config.py -> 3 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\deps.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - app/deps.py -> 3 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\main.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - app/main.py -> 3 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\schemas.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - app/schemas.py -> 9 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\env.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - migrations/env.py -> 5 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\README
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\script.py.mako
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\conftest.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - tests/conftest.py -> 2 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_api.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - tests/test_api.py -> 14 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_history_api.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - tests/test_history_api.py -> 14 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_ocr.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - tests/test_ocr.py -> 4 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_pipeline.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - tests/test_pipeline.py -> 7 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_plate_format.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - tests/test_plate_format.py -> 2 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_repository.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - tests/test_repository.py -> 9 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_yolo_detector.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - tests/test_yolo_detector.py -> 6 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\versions\9ea2fc90101a_create_recognition_tables.py
+[2026-11-11 20:36:35] DEBUG - ingestion.chunking.python_chunker - migrations/versions/9ea2fc90101a_create_recognition_tables.py -> 3 chunk
+[2026-11-11 20:36:35] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\api\history.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/api/history.py -> 7 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\api\routes.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/api/routes.py -> 4 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\base.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/db/base.py -> 2 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\models.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/db/models.py -> 3 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\repository.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/db/repository.py -> 6 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\session.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/db/session.py -> 3 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\detector.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/services/detector.py -> 5 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\factory.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/services/factory.py -> 2 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\history.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/services/history.py -> 2 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\ocr.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/services/ocr.py -> 5 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\pipeline.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/services/pipeline.py -> 6 chunk
+[2026-11-11 20:36:36] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\plate_format.py
+[2026-11-11 20:36:36] DEBUG - ingestion.chunking.python_chunker - app/services/plate_format.py -> 3 chunk
+[2026-11-11 20:36:36] INFO - ingestion.load_data - Quét xong: giữ 40 file, bỏ qua 170 file
+[2026-11-11 20:38:54] INFO - ingestion.load_data - Bắt đầu quét: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.dockerignore
+[2026-11-11 20:38:54] WARNING - ingestion.load_data - Bỏ qua file nhạy cảm: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.env
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.env.example
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.text_chunker - .env.example -> 1 chunk (130 ký tự)
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\.gitignore
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\alembic.ini
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.text_chunker - alembic.ini -> 1 chunk (5013 ký tự)
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\crop_debug_0.jpg
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\detector_out.jpg
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\docker-compose.yaml
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.text_chunker - docker-compose.yaml -> 1 chunk (2517 ký tự)
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\Dockerfile
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.text_chunker - Dockerfile -> 1 chunk (2620 ký tự)
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\pipeline_out.jpg
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\pytest.ini
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\requirements.txt
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_crop.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_crop.py -> 1 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_db.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_db.py -> 2 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_detector.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_detector.py -> 1 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_models.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_models.py -> 2 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_ocr.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_ocr.py -> 1 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_pipeline.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_pipeline.py -> 1 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_repo_pg.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_repo_pg.py -> 4 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_schemas.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_schemas.py -> 1 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_yolo.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_yolo.py -> 1 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\try_yolo_val.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - try_yolo_val.py -> 1 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\yolo_out.jpg
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\config.py
+[2026-11-11 20:38:54] DEBUG - ingestion.chunking.python_chunker - app/config.py -> 3 chunk
+[2026-11-11 20:38:54] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\deps.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/deps.py -> 3 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\main.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/main.py -> 3 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\schemas.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/schemas.py -> 9 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\env.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - migrations/env.py -> 5 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\README
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Bỏ qua (đuôi không hỗ trợ): C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\script.py.mako
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\conftest.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - tests/conftest.py -> 2 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_api.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - tests/test_api.py -> 14 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_history_api.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - tests/test_history_api.py -> 14 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_ocr.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - tests/test_ocr.py -> 4 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_pipeline.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - tests/test_pipeline.py -> 7 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_plate_format.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - tests/test_plate_format.py -> 2 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_repository.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - tests/test_repository.py -> 9 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\tests\test_yolo_detector.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - tests/test_yolo_detector.py -> 6 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\migrations\versions\9ea2fc90101a_create_recognition_tables.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - migrations/versions/9ea2fc90101a_create_recognition_tables.py -> 3 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\api\history.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/api/history.py -> 7 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\api\routes.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/api/routes.py -> 4 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\base.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/db/base.py -> 2 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\models.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/db/models.py -> 3 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\repository.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/db/repository.py -> 6 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\db\session.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/db/session.py -> 3 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\detector.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/services/detector.py -> 5 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\factory.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/services/factory.py -> 2 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\history.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/services/history.py -> 2 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\ocr.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/services/ocr.py -> 5 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\pipeline.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/services/pipeline.py -> 6 chunk
+[2026-11-11 20:38:55] DEBUG - ingestion.load_data - Nhận file: C:\Users\Huy\PycharmProjects\WelcomeScreen\plate-api\app\services\plate_format.py
+[2026-11-11 20:38:55] DEBUG - ingestion.chunking.python_chunker - app/services/plate_format.py -> 3 chunk
+[2026-11-11 20:38:55] INFO - ingestion.load_data - Quét xong: giữ 40 file, bỏ qua 170 file

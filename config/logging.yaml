@@ -1,4 +1,5 @@
 version: 1
+disable_existing_loggers: false  # không tắt logger của thư viện (sentence_transformers, httpx, ...)
 
 # Cau hinh format hien thi cua log. Vi du: [2026-01-15 09:32:10] INFO - ingestion - Loaded 152 records
 formatters:

@@ -1,0 +1,52 @@
+.app { display: flex; height: 100%; }
+.app__main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+/* Sidebar */
+.sidebar {
+  width: var(--sidebar-width); flex-shrink: 0;
+  display: flex; flex-direction: column;
+  background: var(--sidebar-bg); color: var(--sidebar-text);
+}
+.sidebar__top { padding: 20px 16px 12px; display: grid; gap: 16px; }
+.sidebar__brand { font-weight: 600; font-size: 17px; color: #fff; padding: 0 8px; }
+.btn-new {
+  padding: 10px 14px; border-radius: var(--radius-md);
+  background: var(--teal); color: #fff; font-weight: 500; text-align: left;
+}
+.btn-new:hover:not(:disabled) { background: var(--teal-dark); }
+
+.sidebar__list { flex: 1; overflow-y: auto; padding: 8px; display: grid; gap: 2px; align-content: start; }
+.conv { display: flex; align-items: center; border-radius: var(--radius-sm); }
+.conv:hover, .conv--active { background: var(--sidebar-active); }
+.conv__title {
+  flex: 1; min-width: 0; padding: 9px 10px; text-align: left;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: inherit;
+}
+.conv--active .conv__title { color: #fff; }
+.conv__delete { padding: 8px; margin-right: 4px; opacity: 0; color: var(--sidebar-text); }
+.conv:hover .conv__delete, .conv__delete:focus-visible { opacity: 1; }
+
+/* Header */
+.header {
+  display: flex; align-items: center; gap: 8px;
+  height: 56px; padding: 0 16px;
+  border-bottom: 1px solid var(--line); background: var(--surface);
+}
+.header__title {
+  margin: 0; font-size: 15px; font-weight: 500;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.header__menu { display: none; }
+
+.scrim { display: none; }
+
+/* Mobile */
+@media (max-width: 800px) {
+  .sidebar {
+    position: fixed; inset: 0 auto 0 0; z-index: 20;
+    transform: translateX(-100%); transition: transform 0.2s ease;
+  }
+  .sidebar--open { transform: none; }
+  .scrim--show { display: block; position: fixed; inset: 0; z-index: 10; background: rgba(22, 32, 42, 0.5); }
+  .header__menu { display: grid; }
+}

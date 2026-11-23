@@ -1,0 +1,23 @@
+:root {
+  --mist: #eef1f4;
+  --surface: #ffffff;
+  --ink: #16202a;
+  --ink-soft: #5a6773;
+  --line: #d9dfe5;
+  --teal: #1f7a6d;
+  --teal-dark: #17594f;
+  --danger: #b3382c;
+
+  --sidebar-bg: #16202a;
+  --sidebar-text: #c9d3dc;
+  --sidebar-active: #243342;
+
+  --font-sans: 'Be Vietnam Pro', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-mono: 'JetBrains Mono', ui-monospace, Menlo, Consolas, monospace;
+
+  --radius-sm: 6px;
+  --radius-md: 12px;
+  --radius-lg: 20px;
+  --content-width: 720px;
+  --sidebar-width: 280px;
+}

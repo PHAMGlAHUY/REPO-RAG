@@ -1,0 +1,4 @@
+{
+  "model": "BAAI/bge-m3",
+  "dim": 1024
+}

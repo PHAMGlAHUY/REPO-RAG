@@ -1,14 +1,12 @@
 version: 1
-disable_existing_loggers: false  # không tắt logger của thư viện (sentence_transformers, httpx, ...)
+disable_existing_loggers: false  # không tắt logger của thư viện (httpx, qdrant_client, ...)
 
-# Cau hinh format hien thi cua log. Vi du: [2026-01-15 09:32:10] INFO - ingestion - Loaded 152 records
+# Định dạng log. Ví dụ: [2026-01-15 09:32:10] INFO - ingestion - Loaded 152 records
 formatters:
   simple:
     format: '[%(asctime)s] %(levelname)s - %(name)s - %(message)s'
-    # trong do: asctime la thoi gian, levelname la muc do log (INFO, INFO, ERROR), name la ten cua logger, message la noi dung log
     datefmt: '%Y-%m-%d %H:%M:%S'
 
-# Cau hinh consle
 handlers:
   console:
     class: logging.StreamHandler
@@ -17,55 +15,48 @@ handlers:
     stream: ext://sys.stdout
 
   file:
-    class: logging.FileHandler
+    class: logging.FileHandler  # không dùng Rotating vì ingestion chạy nhiều process cùng ghi một file
     level: DEBUG
     formatter: simple
     filename: logs/application.log
     encoding: utf-8
+    delay: true  # chỉ tạo file khi có dòng log đầu tiên
 
-# Cau hinh logger cho tung module
+# Logger theo từng module
 loggers:
   ingestion:
     level: DEBUG
     handlers: [console, file]
     propagate: no
 
-  embedding:
+  embedding: &app_logger
     level: INFO
     handlers: [console, file]
     propagate: no
 
   scoring:
-    level: INFO
-    handlers: [console, file]
-    propagate: no
-
+    <<: *app_logger
   vector_database:
-    level: INFO
-    handlers: [console, file]
-    propagate: no
-
+    <<: *app_logger
   llm:
-    level: INFO
-    handlers: [console, file]
-    propagate: no
-
+    <<: *app_logger
   retrieval:
-    level: INFO
-    handlers: [console, file]
-    propagate: no
-
+    <<: *app_logger
   reranking:
-    level: INFO
-    handlers: [console, file]
-    propagate: no
-
+    <<: *app_logger
   chat:
-    level: INFO
-    handlers: [console, file]
-    propagate: no
+    <<: *app_logger
 
-# Cau hinh logger mac dinh
+  # Thư viện bên thứ ba: chỉ hiện cảnh báo trở lên
+  httpx:
+    level: WARNING
+  httpcore:
+    level: WARNING
+  urllib3:
+    level: WARNING
+  huggingface_hub:
+    level: WARNING
+
 root:
   level: INFO
   handlers: [console, file]

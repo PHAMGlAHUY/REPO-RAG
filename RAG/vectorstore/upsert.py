@@ -1,9 +1,11 @@
 import logging
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import Callable, Iterable
 
 from qdrant_client import QdrantClient
-from qdrant_client.models import FieldCondition, Filter, FilterSelector, MatchAny
+from qdrant_client.http.exceptions import ResponseHandlingException, UnexpectedResponse
+from qdrant_client.models import FieldCondition, Filter, FilterSelector, HasIdCondition, MatchAny
 
 from vectorstore.index import create_qdrant_points
 from vectorstore.qdrant import VECTOR_DB_BATCH_SIZE, VECTOR_DB_COLLECTION
@@ -13,12 +15,14 @@ logger = logging.getLogger('vector_database')
 MAX_RETRIES = 3
 
 
-def _retry(fn: Callable[[], None]) -> None:
+def retry(fn: Callable[[], object]) -> None:
     for attempt in range(MAX_RETRIES):
         try:
             fn()
             return
-        except Exception as e:
+        except (ResponseHandlingException, ConnectionError, TimeoutError, UnexpectedResponse) as e:
+            if isinstance(e, UnexpectedResponse) and e.status_code < 500:
+                raise
             if attempt == MAX_RETRIES - 1:
                 raise
             wait = 2 ** attempt
@@ -26,23 +30,28 @@ def _retry(fn: Callable[[], None]) -> None:
             time.sleep(wait)
 
 
+_retry = retry  # tên cũ
 
-def delete_files(client: QdrantClient, file_paths: Iterable[str]) -> None:
-    """Xoá toàn bộ chunk của các file trong một lần gọi."""
+
+def delete_stale(client: QdrantClient, file_paths: Iterable[str], keep_ids: list | None = None) -> None:
+    """Xoá chunk của các file; bỏ qua các id trong keep_ids (chunk mới vừa upsert)."""
     file_paths = sorted(set(file_paths))
     if not file_paths:
         return
+    flt = Filter(
+        must=[FieldCondition(key='file_path', match=MatchAny(any=file_paths))],
+        must_not=[HasIdCondition(has_id=keep_ids)] if keep_ids else None,
+    )
+    retry(lambda: client.delete(
+        collection_name=VECTOR_DB_COLLECTION,
+        points_selector=FilterSelector(filter=flt),
+        wait=True,
+    ))
 
-    flt = Filter(must=[FieldCondition(key='file_path', match=MatchAny(any=file_paths))])
 
-    def _do_delete() -> None:
-        client.delete(
-            collection_name=VECTOR_DB_COLLECTION,
-            points_selector=FilterSelector(filter=flt),
-            wait=True,
-        )
-
-    _retry(_do_delete)
+def delete_files(client: QdrantClient, file_paths: Iterable[str]) -> None:
+    """Xoá toàn bộ chunk của các file trong một lần gọi."""
+    delete_stale(client, file_paths)
 
 
 def index_batch(
@@ -50,22 +59,19 @@ def index_batch(
     chunks: list[dict],
     changed_files: Iterable[str] = (),
     deleted_files: Iterable[str] = (),
-    summarizer=None,
     batch_size: int = VECTOR_DB_BATCH_SIZE,
-) -> bool:
-    """Xoá chunk cũ của file đổi/xoá, rồi embed + upsert chunk mới theo lô.
-    Trả True khi tất cả đã lưu xong; bên gọi chỉ commit index_state SAU khi nhận True.
-    Lỗi giữa chừng thì ném exception, state chưa commit nên lần sau index lại (id ổn định nên upsert idempotent)."""
-    delete_files(client, [*changed_files, *deleted_files])
-    for i in range(0, len(chunks), batch_size):
-        points = create_qdrant_points(chunks[i:i + batch_size], summarizer)
+) -> None:
+    """Upsert chunk mới trước, sau đó xoá chunk cũ của file đổi/xoá. Lỗi thì ném exception."""
+    batches = [chunks[i:i + batch_size] for i in range(0, len(chunks), batch_size)]
+    if batches:
+        with ThreadPoolExecutor(max_workers=1) as ex:  # embed batch kế tiếp trong lúc upsert batch hiện tại
+            fut = ex.submit(create_qdrant_points, batches[0])
+            for k in range(len(batches)):
+                points = fut.result()
+                if k + 1 < len(batches):
+                    fut = ex.submit(create_qdrant_points, batches[k + 1])
+                retry(lambda p=points: client.upsert(collection_name=VECTOR_DB_COLLECTION, points=p, wait=True))
 
-        def _do_upsert() -> None:
-            client.upsert(
-                collection_name=VECTOR_DB_COLLECTION,
-                points=points,
-                wait=True,
-            )
-
-        _retry(_do_upsert)
-    return True
+    changed = sorted(set(changed_files))
+    delete_stale(client, changed, keep_ids=[c['id'] for c in chunks])
+    delete_files(client, set(deleted_files) - set(changed))

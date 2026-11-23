@@ -74,6 +74,7 @@ class LLMClient:
         retries: int = 3,
         client: Any = None,
         check_model: bool = True,
+        keep_alive: str | None = None
     ):
         self.model = model
         self.retries = retries
@@ -82,6 +83,7 @@ class LLMClient:
             num_ctx=num_ctx, max_tokens=max_tokens, temperature=temperature,
             top_p=top_p, repeat_penalty=repeat_penalty, seed=seed,
         )
+
         if client is None:
             import ollama
 
@@ -95,9 +97,12 @@ class LLMClient:
 
     @classmethod
     def from_config(cls, settings: Mapping[str, Any], **kwargs: Any) -> "LLMClient":
-        cfg = settings.get("llm")
+        cfg = dict(settings.get("llm") or {})
         if not cfg:
             raise KeyError("Thiếu mục 'llm' trong config")
+        cfg.pop("provider", None)
+        if "model_name" in cfg:
+            cfg["model"] = cfg.pop("model_name")
         return cls(**{**cfg, **kwargs})
 
     # ------------------------------------------------------------------ #
@@ -119,6 +124,10 @@ class LLMClient:
         kw: dict[str, Any] = {"model": self.model, "messages": messages, "options": options, "stream": stream}
         if think is not None:
             kw["think"] = think
+
+        if self.keep_alive:
+            kw["keep_alive"] = self.keep_alive
+
         return kw
 
     def _with_retry(self, fn: Callable[[], Any]) -> Any:

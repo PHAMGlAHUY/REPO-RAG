@@ -1,0 +1,8 @@
+{
+  "model": "BAAI/bge-m3",
+  "dim": 1024,
+  "sparse_model": "Qdrant/bm25",
+  "disable_stemmer": false,
+  "distance": "cosine",
+  "chunker_version": 1
+}

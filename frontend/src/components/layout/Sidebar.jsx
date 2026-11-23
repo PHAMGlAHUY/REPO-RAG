@@ -8,26 +8,46 @@ export default function Sidebar({ open, onClose }) {
     onClose();
   };
 
+  const handleRemove = (e, id) => {
+    e.stopPropagation();
+    remove(id);
+  };
+
   return (
     <>
       <div className={`scrim ${open ? 'scrim--show' : ''}`} onClick={onClose} />
       <aside className={`sidebar ${open ? 'sidebar--open' : ''}`} aria-label="Lịch sử trò chuyện">
         <div className="sidebar__top">
           <span className="sidebar__brand">Trợ lý AI</span>
-          <button className="btn-new" onClick={() => { newChat(); onClose(); }} disabled={isStreaming}>
+          <button
+            type="button"
+            className="btn-new"
+            onClick={() => {
+              newChat();
+              onClose();
+            }}
+            disabled={isStreaming}
+          >
             Cuộc trò chuyện mới
           </button>
         </div>
 
         <nav className="sidebar__list">
           {conversations.map((c) => (
-            <div key={c.id} className={`conv ${c.id === active.id ? 'conv--active' : ''}`}>
-              <button className="conv__title" onClick={() => handleSelect(c.id)} disabled={isStreaming}>
+            <div key={c.id} className={`conv ${c.id === active?.id ? 'conv--active' : ''}`}>
+              <button
+                type="button"
+                className="conv__title"
+                onClick={() => handleSelect(c.id)}
+                disabled={isStreaming}
+                title={c.title}
+              >
                 {c.title}
               </button>
               <button
+                type="button"
                 className="conv__delete"
-                onClick={() => remove(c.id)}
+                onClick={(e) => handleRemove(e, c.id)}
                 disabled={isStreaming}
                 aria-label={`Xóa “${c.title}”`}
               >

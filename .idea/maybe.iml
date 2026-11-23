@@ -3,7 +3,10 @@
   <component name="NewModuleRootManager">
     <content url="file://$MODULE_DIR$">
       <sourceFolder url="file://$MODULE_DIR$" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/backend" isTestSource="false" />
+      <sourceFolder url="file://$MODULE_DIR$/RAG" isTestSource="false" />
       <excludeFolder url="file://$MODULE_DIR$/.venv" />
+      <excludeFolder url="file://$MODULE_DIR$/RAG/.venv" />
     </content>
     <orderEntry type="jdk" jdkName="~\PycharmProjects\maybe\.venv" jdkType="Python SDK" />
     <orderEntry type="sourceFolder" forTests="false" />

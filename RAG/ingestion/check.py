@@ -3,44 +3,66 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from config.load_config import PROJECT_ROOT, _resolve, load_settings
-from ingestion.pipeline import detect_changes, load_index_state
-from vectorstore.qdrant import VECTOR_DB_COLLECTION, get_qdrant_client
+from embedding import embedder
+from ingestion.pipeline import STATE_FILE, detect_changes, load_index_state
+from vectorstore.qdrant import (
+    CHUNKER_VERSION, INDEX_FINGERPRINT_PATH, SPARSE_DISABLE_STEMMER, SPARSE_MODEL,
+    VECTOR_DB_COLLECTION, VECTOR_DB_DISTANCE, get_qdrant_client,
+)
 
-STATE_FILE = PROJECT_ROOT / "data" / "index_state.json"
+
+def _collection_problem(client) -> str | None:
+    if not client.collection_exists(VECTOR_DB_COLLECTION):
+        return "No collections found"
+    points, _ = client.scroll(VECTOR_DB_COLLECTION, limit=1, with_payload=False, with_vectors=False)
+    if not points:
+        return "Empty collections found"
+    return None
+
+
+def _fingerprint_changes() -> list[str]:
+    """So sánh cấu hình hiện tại với fingerprint đã lưu (không load model, không ghi file)."""
+    p = Path(INDEX_FINGERPRINT_PATH)
+    if not p.is_file():
+        return []
+    try:
+        saved = json.loads(p.read_text(encoding='utf-8'))
+    except Exception:
+        return ['fingerprint unreadable']
+    current = {
+        'model': embedder.EMBEDDING_MODEL,
+        'backend': embedder.BACKEND,
+        'onnx_file': embedder.ONNX_FILE,
+        'sparse_model': SPARSE_MODEL,
+        'disable_stemmer': SPARSE_DISABLE_STEMMER,
+        'distance': str(VECTOR_DB_DISTANCE).lower(),
+        'chunker_version': CHUNKER_VERSION,
+    }
+    return [k for k, v in current.items() if k in saved and saved[k] != v]
 
 
 def check_index(repo_root: str | Path, state_file: str | Path = STATE_FILE) -> dict:
-    settings = load_settings()
-    emb = settings.get("embedding", {})
-    meta = _resolve(emb.get("index_meta_path", "data/index_meta.json"))
-    if meta.is_file():
-        saved = json.loads(meta.read_text(encoding="utf-8"))
-        if saved.get("model") != emb.get("model"):
-            raise RuntimeError(
-                f"Index tạo bằng model {saved.get('model')} nhưng cấu hình là {emb.get('model')}. "
-                f"Xóa collection, index_state.json và {meta} rồi chạy lại."
-            )
-
     reasons: list[str] = []
-    client = get_qdrant_client()
-    if not client.collection_exists(VECTOR_DB_COLLECTION):
-        reasons.append("collection chưa tồn tại")
-    elif client.count(VECTOR_DB_COLLECTION, exact=False).count == 0:
-        reasons.append("collection rỗng")
 
-    state_path = Path(state_file)
-    if not state_path.is_file():
-        reasons.append("chưa có index_state.json")
+    problem = _collection_problem(get_qdrant_client())
+    reset_state = problem is not None  # collection mất/rỗng: bỏ qua state cũ, index lại toàn bộ
+    if problem:
+        reasons.append(problem)
 
-    changed, deleted, new = detect_changes(repo_root, load_index_state(state_path))
+    previous_state = {} if reset_state else load_index_state(state_file)
+    changed, deleted, new = detect_changes(repo_root, previous_state)
     if changed or deleted or new:
-        reasons.append(f"{len(new)} file mới, {len(changed)} file sửa, {len(deleted)} file xóa")
+        reasons.append(f"{len(new)} new, {len(changed)} edited, {len(deleted)} deleted")
+
+    diff = _fingerprint_changes()
+    if diff:
+        reasons.append(f"Index config changed: {', '.join(diff)}")
 
     return {
-        "needs_index": bool(reasons),
-        "reasons": reasons,
-        "changed": changed,
-        "deleted": deleted,
-        "new": new,
+        'needs_index': bool(reasons),
+        'reasons': reasons,
+        'reset_state': reset_state,
+        'changed': changed,
+        'deleted': deleted,
+        'new': new,
     }

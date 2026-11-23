@@ -1,47 +1,105 @@
-const API_URL = import.meta.env.VITE_API_URL;
+const BASE = import.meta.env.VITE_API_BASE_URL || "";
 
-const sleep = (ms, signal) =>
-  new Promise((resolve, reject) => {
-    const t = setTimeout(resolve, ms);
-    signal?.addEventListener('abort', () => {
-      clearTimeout(t);
-      reject(new DOMException('Aborted', 'AbortError'));
-    });
-  });
-
-/** Phản hồi giả lập, stream từng đoạn nhỏ như model thật. */
-async function mockStream({ messages, signal, onToken }) {
-  const last = messages.at(-1)?.content ?? '';
-  const reply =
-    `Bạn vừa hỏi: “${last}”.\n\nĐây là phản hồi giả lập để bạn kiểm tra giao diện. ` +
-    'Hãy nối backend thật trong `src/api/chatApi.js`.\n\n' +
-    '```js\nconst answer = await streamReply({ messages, onToken });\n```\n\n' +
-    'Giao diện hỗ trợ stream, dừng giữa chừng, và lưu lịch sử trò chuyện.';
-
-  await sleep(500, signal);
-  for (let i = 0; i < reply.length; i += 3) {
-    onToken(reply.slice(i, i + 3));
-    await sleep(18, signal);
+export class ApiError extends Error {
+  constructor(message, status) {
+    super(message);
+    this.status = status;
   }
 }
 
-/** Gọi backend thật: POST {messages} và đọc phản hồi dạng stream văn bản. */
-async function remoteStream({ messages, signal, onToken }) {
-  const res = await fetch(`${API_URL}/chat`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ messages: messages.map(({ role, content }) => ({ role, content })) }),
-    signal,
-  });
-  if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
+const networkError = () =>
+  new ApiError("Không kết nối được tới backend. Kiểm tra uvicorn đã chạy chưa.", 0);
+
+const sentence = (s) => (/[.!?]$/.test(s) ? s : s + ".");
+
+function friendly(status, detail) {
+  if (status === 503)
+    return `${sentence(detail)} Hãy kiểm tra Qdrant (docker compose up -d) và Ollama (ollama serve), rồi bấm Thử lại.`;
+  if (status === 504) return `${sentence(detail)} Bạn có thể bấm Thử lại.`;
+  return detail; // 400, 429, 500 đã có thông báo rõ từ backend
+}
+
+async function toApiError(res) {
+  let detail = `Lỗi ${res.status}`;
+  try {
+    const body = await res.json();
+    if (typeof body.detail === "string") detail = body.detail;
+  } catch {
+    /* giữ thông báo mặc định */
+  }
+  return new ApiError(friendly(res.status, detail), res.status);
+}
+
+export async function fetchHealth() {
+  const res = await fetch(`${BASE}/api/health`);
+  if (!res.ok) throw new ApiError(`Lỗi ${res.status}`, res.status);
+  return res.json();
+}
+
+function parseEvent(raw) {
+  let event = "message";
+  const data = [];
+  for (const line of raw.split("\n")) {
+    if (line.startsWith("event:")) event = line.slice(6).trim();
+    else if (line.startsWith("data:")) data.push(line.slice(5).trimStart());
+  }
+  return { event, data: data.length ? JSON.parse(data.join("\n")) : null };
+}
+
+export async function streamQuestion(question, { signal, onSources, onToken, onDone }) {
+  let res;
+  try {
+    res = await fetch(`${BASE}/api/chat/stream`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ question }),
+      signal,
+    });
+  } catch (e) {
+    if (e.name === "AbortError") throw e;
+    throw networkError();
+  }
+  if (!res.ok) throw await toApiError(res);
 
   const reader = res.body.getReader();
   const decoder = new TextDecoder();
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    onToken(decoder.decode(value, { stream: true }));
+  let buffer = "";
+  let finished = false;
+
+  while (true) {
+    let chunk;
+    try {
+      chunk = await reader.read();
+    } catch (e) {
+      if (e.name === "AbortError") throw e;
+      throw new ApiError("Mất kết nối khi đang nhận câu trả lời.", 0);
+    }
+    if (chunk.done) break;
+
+    buffer += decoder.decode(chunk.value, { stream: true });
+    let sep;
+    while ((sep = buffer.indexOf("\n\n")) !== -1) {
+      const { event, data } = parseEvent(buffer.slice(0, sep));
+      buffer = buffer.slice(sep + 2);
+      if (event === "sources") onSources(data);
+      else if (event === "token") onToken(data.t);
+      else if (event === "done") {
+        finished = true;
+        onDone(data);
+      } else if (event === "error") throw new ApiError(friendly(data.status, data.detail), data.status);
+    }
   }
+  if (!finished) throw new ApiError("Kết nối bị ngắt trước khi câu trả lời hoàn tất.", 0);
 }
 
-export const streamReply = API_URL ? remoteStream : mockStream;
+export async function fetchIndexStatus() {
+  const res = await fetch(`${BASE}/api/index/status`);
+  if (!res.ok) throw new ApiError(`Lỗi ${res.status}`, res.status);
+  return res.json(); // { ready, models_ready, indexing, last_indexed, error }
+}
+
+export async function triggerReindex() {
+  const res = await fetch(`${BASE}/api/index`, { method: "POST" });
+  if (!res.ok) throw await toApiError(res);
+  return res.json();
+}

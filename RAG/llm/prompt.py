@@ -76,7 +76,9 @@ MIN_CHUNK_CHARS = 200  # chunk bị cắt ngắn hơn mức này thì bỏ
 # --------------------------------------------------------------------------- #
 
 # Chunker thêm 1-3 dòng "# File / # Class / # Node" vào đầu mỗi chunk; thông tin này đã có trong header nguồn
-_CHUNK_HEADER_RE = re.compile(r"\A# File: [^\n]*\n(?:# Class: [^\n]*\n)?(?:# Node: [^\n]*\n)?")
+_CHUNK_HEADER_RE = re.compile(
+    r"\A(?:# (?:File|Class|Node|Imports|Decorators|Signature|Docstring): [^\n]*\n)+"
+)
 
 _LANG_ALIASES = {"py": "python", "js": "javascript", "ts": "typescript", "md": "markdown", "yml": "yaml"}
 

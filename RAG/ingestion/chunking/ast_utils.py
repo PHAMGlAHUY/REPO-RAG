@@ -2,6 +2,8 @@
 Không biết gì về 'chunk' hay token."""
 import inspect
 import textwrap
+from bisect import bisect_left
+from functools import lru_cache
 from typing import Callable
 
 from tree_sitter import Node
@@ -17,7 +19,7 @@ def is_async_def(node: Node, source_bytes: bytes) -> bool:
         if child.type == 'def':
             break
 
-    return get_node_text(node, source_bytes).lstrip().startswith('async def')
+    return source_bytes[node.start_byte:node.start_byte + 32].split()[:1] == [b'async']
 
 
 # ---------------------------------------------------------------- node tree-sitter
@@ -88,26 +90,23 @@ def extract_decorators(outer_node: Node, source_bytes: bytes) -> list[str]:
 
 
 def extract_calls(node: Node, source_bytes: bytes) -> list[str]:
-    """Trích xuất tên các hàm / phương thức được gọi bên trong AST node."""
+    """Trích xuất tên các hàm / phương thức được gọi bên trong AST node (duyệt bằng stack, không đệ quy)."""
     calls: list[str] = []
     seen: set[str] = set()
 
-    def _walk(curr: Node) -> None:
-        if curr.type == "call":
-            fn_node = curr.child_by_field_name("function")
+    stack = [node]
+    while stack:
+        curr = stack.pop()
+        if curr.type == 'call':
+            fn_node = curr.child_by_field_name('function')
             if fn_node is not None:
-                name = source_bytes[fn_node.start_byte : fn_node.end_byte].decode(
-                    "utf-8", errors="replace"
-                ).strip()
+                name = source_bytes[fn_node.start_byte:fn_node.end_byte].decode('utf-8', errors='replace').strip()
                 if name and name not in seen:
                     seen.add(name)
                     calls.append(name)
-
-        for child in curr.children:
-            _walk(child)
-
-    _walk(node)
+        stack.extend(reversed(curr.children))
     return calls
+
 
 def collect_syntax_errors(root: Node, source_bytes: bytes, limit: int | None = None) -> list[dict]:
     """Liệt kê vị trí lỗi cú pháp (node ERROR / MISSING) theo thứ tự trong file. Duyệt vòng lặp, không đệ quy."""
@@ -132,65 +131,89 @@ def collect_syntax_errors(root: Node, source_bytes: bytes, limit: int | None = N
     return errors
 
 
-def collect_module_imports(root_node: Node, source_bytes: bytes) -> list[str]:
-    """Thu thập các câu lệnh import ở cấp module, bao gồm cả trong try/except và if TYPE_CHECKING."""
-    imports: list[str] = []
+def _bound_names(node: Node, source_bytes: bytes) -> set[str]:
+    """Tên được import vào namespace: `import a.b` -> a; `import a as x` -> x; `from m import y as z` -> z."""
+    names: set[str] = set()
+    for child in node.children_by_field_name('name'):
+        if child.type == 'aliased_import':
+            alias = child.child_by_field_name('alias')
+            if alias is not None:
+                names.add(get_node_text(alias, source_bytes))
+        else:  # dotted_name
+            names.add(get_node_text(child, source_bytes).split('.')[0])
+    return names
+
+
+def collect_module_imports(root_node: Node, source_bytes: bytes) -> list[tuple[set[str], str]]:
+    """Import cấp module (kể cả trong try/except, if TYPE_CHECKING): [(tên được import, câu lệnh một dòng)]."""
+    imports: list[tuple[set[str], str]] = []
     seen: set[str] = set()
 
-    def _walk(node: Node) -> None:
-        if node.type in ("import_statement", "import_from_statement"):
-            stmt = source_bytes[node.start_byte : node.end_byte].decode("utf-8", errors="replace").strip()
-            if stmt and stmt not in seen:
+    stack = [root_node]
+    while stack:
+        node = stack.pop()
+        if node.type in ('import_statement', 'import_from_statement'):
+            stmt = ' '.join(get_node_text(node, source_bytes).split())  # một dòng, để không phá cấu trúc header
+            names = _bound_names(node, source_bytes)
+            if stmt and names and stmt not in seen:
                 seen.add(stmt)
-                imports.append(stmt)
-            return
-
-        # Không đi sâu vào thân hàm hoặc class để tránh lẫn import cục bộ
-        if node.type in ("function_definition", "async_function_definition", "class_definition"):
-            return
-
-        for child in node.children:
-            _walk(child)
-
-    _walk(root_node)
+                imports.append((names, stmt))
+            continue
+        if node.type in ('function_definition', 'class_definition'):
+            continue  # bỏ import cục bộ trong hàm/class
+        stack.extend(reversed(node.children))
     return imports
 
+
 # ---------------------------------------------------------------- đoạn byte / dòng
+@lru_cache(maxsize=4)
+def _newline_offsets(source_bytes: bytes) -> list[int]:
+    offsets: list[int] = []
+    i = source_bytes.find(b'\n')
+    while i != -1:
+        offsets.append(i)
+        i = source_bytes.find(b'\n', i + 1)
+    return offsets
+
+
 def get_line_span(source_bytes: bytes, start: int, end: int) -> tuple[int, int]:
     """Số dòng (1-based) đầu/cuối của đoạn byte, bỏ khoảng trắng hai đầu."""
-    total_lines = source_bytes.count(b'\n') + 1
     if not source_bytes:
         return 1, 1
+
+    offsets = _newline_offsets(source_bytes)
+    total_lines = len(offsets) + 1
 
     start = max(0, min(start, len(source_bytes)))
     end = max(start, min(end, len(source_bytes)))
 
     raw = source_bytes[start:end]
-    stripped = raw.strip()
-    if not stripped:
-        line = min(source_bytes.count(b'\n', 0, start) + 1, total_lines)
+    left = raw.lstrip()
+    if not left:
+        line = min(bisect_left(offsets, start) + 1, total_lines)
         return line, line
 
-    first_offset = raw.find(stripped[0])
-    last_offset = raw.rfind(stripped[-1])
+    first_pos = start + (len(raw) - len(left))
+    last_pos = start + len(raw.rstrip()) - 1
 
-    first_pos = start + max(0, first_offset)
-    last_pos = start + max(0, last_offset)
-
-    start_line = min(source_bytes.count(b'\n', 0, first_pos) + 1, total_lines)
-    end_line = min(source_bytes.count(b'\n', 0, last_pos) + 1, total_lines)
+    start_line = min(bisect_left(offsets, first_pos) + 1, total_lines)
+    end_line = min(bisect_left(offsets, last_pos) + 1, total_lines)
     return start_line, max(start_line, end_line)
 
 
 def expand_start_byte_to_include_comments(source_bytes: bytes, start_byte: int) -> int:
     """Lùi start_byte để gồm các comment '#' đứng ngay trước node (bỏ các dòng trống ở đầu)."""
     new_start = start_byte
-    for line in reversed(source_bytes[:start_byte].splitlines(keepends=True)):
-        stripped = line.strip()
-        if stripped.startswith(b'#') or not stripped:
-            new_start -= len(line)
-        else:
-            break
+    line_start = source_bytes.rfind(b'\n', 0, new_start) + 1
+    if not source_bytes[line_start:new_start].strip():  # phần đệm trước node chỉ là khoảng trắng
+        new_start = line_start
+        while new_start > 0:
+            prev_start = source_bytes.rfind(b'\n', 0, new_start - 1) + 1
+            stripped = source_bytes[prev_start:new_start].strip()
+            if stripped.startswith(b'#') or not stripped:
+                new_start = prev_start
+            else:
+                break
     # không để chunk mở đầu bằng các dòng trống
     while True:
         nl = source_bytes.find(b'\n', new_start, start_byte)
@@ -198,6 +221,12 @@ def expand_start_byte_to_include_comments(source_bytes: bytes, start_byte: int) 
             break
         new_start = nl + 1
     return max(0, new_start)
+
+
+def _align_to_line_start(source_bytes: bytes, pos: int) -> int:
+    """Lùi pos về đầu dòng nếu phần đứng trước nó trên cùng dòng chỉ là khoảng trắng (giữ nguyên thụt lề)."""
+    line_start = source_bytes.rfind(b'\n', 0, pos) + 1
+    return line_start if not source_bytes[line_start:pos].strip() else pos
 
 
 def split_ast_body_ranges(
@@ -223,7 +252,7 @@ def split_ast_body_ranges(
 
     def make_part(a: int, b: int) -> tuple[str, int, int]:
         _s_line, _e_line = get_line_span(source_bytes, a, b)
-        return get_range_text(source_bytes, a, b), _s_line, _e_line
+        return get_range_text(source_bytes, _align_to_line_start(source_bytes, a), b), _s_line, _e_line
 
     parts: list[tuple[str, int, int]] = []
     cur_start, cur_end = start_byte, stmt_groups[0][1]
@@ -239,6 +268,7 @@ def split_ast_body_ranges(
 
     parts.append(make_part(cur_start, cur_end))
     return parts
+
 
 def build_line_map(pieces: list[str], piece_spans: list[tuple[int, int]]) -> list[int | None]:
     """Chunk ghép từ nhiều đoạn rời bằng '\\n\\n': trả về số dòng thật trong file của từng dòng của chunk

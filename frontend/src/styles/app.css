@@ -184,3 +184,8 @@ button:disabled { opacity: 0.5; cursor: not-allowed; }
 .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
 .dot.ok { background: #2ea043; }
 .dot.bad { background: var(--danger); }
+
+.dot.warn { background: #e0a100; }
+.reindex { font-size: 12px; padding: 2px 8px; }
+.status { flex-wrap: wrap; align-items: center; }
+#root { width: 100%; max-width: none; margin: 0; border: 0; text-align: left; display: block; }

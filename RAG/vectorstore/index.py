@@ -1,31 +1,27 @@
 import logging
 import os
-from pathlib import Path
-
 from functools import lru_cache
+from pathlib import Path
 
 from qdrant_client.models import PointStruct, SparseVector
 
-from embedding.embedder import embed_texts, build_contextual_text
+from embedding.embedder import embed_texts
 from vectorstore.qdrant import DENSE_VECTOR_NAME, SPARSE_DISABLE_STEMMER, SPARSE_MODEL, SPARSE_VECTOR_NAME
 
-FASTEMBED_CACHE = os.environ.get(
-    "FASTEMBED_CACHE_PATH",
-    str(Path(__file__).resolve().parent.parent / "data" / "model_cache" / "fastembed"),
-)
+_CACHE_ROOT = Path(os.environ.get("MODEL_CACHE_DIR", Path(__file__).resolve().parent.parent / "data" / "model_cache"))
+FASTEMBED_CACHE = os.environ.get("FASTEMBED_CACHE_PATH", str(_CACHE_ROOT / "fastembed"))
 
 logger = logging.getLogger('vector_database')
 
 SPARSE_BATCH_SIZE = 64
 
-
-# Các trường dùng để lọc/hiển thị; phần còn lại (imports, calls, syntax_errors, byte offset...) gom vào 'extra'
+# Các trường dùng để lọc/hiển thị; phần còn lại (imports, syntax_errors, byte offset...) gom vào 'extra'
 PAYLOAD_FIELDS = (
-    'file_path', 'chunk_type', 'qualified_name', 'parent_class_id', 'content_hash',
-    'has_syntax_error', 'signature', 'start_line', 'end_line', 'part_index', 'total_parts', 'is_async',
+    'file_path', 'qualified_name', 'chunk_type', 'start_line', 'end_line',
+    'parent_class_id', 'part_index', 'total_parts', 'calls',
+    'has_syntax_error', 'content_hash',
 )
-
-
+_NOT_EXTRA = {*PAYLOAD_FIELDS, 'name'}
 
 
 @lru_cache(maxsize=1)
@@ -45,40 +41,34 @@ def warmup_sparse() -> None:
     next(iter(get_sparse_embedder().embed(['warmup'], batch_size=1)))
 
 
-def _embed_sparse(texts: list[str]) -> list[SparseVector]:
-    embedder = get_sparse_embedder()
-    result = []
-    for i in range(0, len(texts), SPARSE_BATCH_SIZE):
-        batch = texts[i:i + SPARSE_BATCH_SIZE]
-        result.extend(
-            SparseVector(indices=e.indices.tolist(), values=e.values.tolist())
-            for e in embedder.embed(batch, batch_size=SPARSE_BATCH_SIZE)
-        )
-    return result
+def to_sparse_vector(e) -> SparseVector:
+    return SparseVector(indices=e.indices.tolist(), values=e.values.tolist())
 
 
 def _build_payload(chunk: dict) -> dict:
     md = chunk['metadata']
     payload = {k: md[k] for k in PAYLOAD_FIELDS if k in md}
-    payload['extra'] = {k: v for k, v in md.items() if k not in PAYLOAD_FIELDS}
+    payload['name'] = (md.get('qualified_name') or '').rpartition('.')[2]
+    parent = md.get('parent_class') or ''
+    names = [n for n in (md.get('node_name') or payload['name']).split('+') if n]  # chunk gộp có node_name 'a+b'
+    payload['names'] = names
+    payload['qualified_names'] = [f'{parent}.{n}' if parent else n for n in names]
+    payload['extra'] = {k: v for k, v in md.items() if k not in _NOT_EXTRA}
     payload['content'] = chunk['content']
     return payload
 
 
-def create_qdrant_points(chunks: list[dict], summarizer=None) -> list[PointStruct]:
+def create_qdrant_points(chunks: list[dict]) -> list[PointStruct]:
     if not chunks:
-        logger.warning("No chunks provided to build Qdrant points.")
         return []
-
-    texts = [build_contextual_text(c, summarizer) for c in chunks]
-    dense_vectors = embed_texts(texts)
-    sparse_vectors = _embed_sparse(texts)
-
+    texts = [c['content'] for c in chunks]
+    dense = embed_texts(texts)
+    sparse = get_sparse_embedder().embed(texts, batch_size=SPARSE_BATCH_SIZE)
     return [
         PointStruct(
-            id=chunk['id'],
-            vector={DENSE_VECTOR_NAME: dense, SPARSE_VECTOR_NAME: sparse},
-            payload=_build_payload(chunk),
+            id=c['id'],
+            vector={DENSE_VECTOR_NAME: d, SPARSE_VECTOR_NAME: to_sparse_vector(s)},
+            payload=_build_payload(c),
         )
-        for chunk, dense, sparse in zip(chunks, dense_vectors, sparse_vectors, strict=True)
+        for c, d, s in zip(chunks, dense, sparse, strict=True)
     ]

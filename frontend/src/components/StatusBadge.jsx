@@ -1,7 +1,14 @@
 import { useHealth } from "../hooks/useHealth";
+import { indexLabel, useIndexStatus } from "../hooks/useIndexStatus";
+import { triggerReindex } from "../api/chatApi";
+import { useState } from "react";
 
-export default function StatusBadge({ paused }) {
+const DOT = { ok: "ok", warn: "warn", error: "bad" };
+
+export default function StatusBadge({ paused, idx }) {
   const health = useHealth(paused);
+  const [err, setErr] = useState("");
+
   if (!health) return <div className="status">Đang kiểm tra…</div>;
 
   const items = health.offline
@@ -11,6 +18,18 @@ export default function StatusBadge({ paused }) {
         { name: "Ollama", ok: health.ollama.ok, detail: health.ollama.detail },
       ];
 
+  const { text, tone } = indexLabel(idx);
+  const disabled = !idx || idx.offline || !idx.models_ready || idx.indexing;
+
+  const reindex = async () => {
+    setErr("");
+    try {
+      await triggerReindex();
+    } catch (e) {
+      setErr(e.message);
+    }
+  };
+
   return (
     <div className="status">
       {items.map((s) => (
@@ -19,6 +38,13 @@ export default function StatusBadge({ paused }) {
           {s.name}
         </span>
       ))}
+      <span className="status-item" title={err || text}>
+        <span className={`dot ${DOT[tone]}`} />
+        {text}
+      </span>
+      <button className="reindex" disabled={disabled} onClick={reindex}>
+        Index lại
+      </button>
     </div>
   );
 }

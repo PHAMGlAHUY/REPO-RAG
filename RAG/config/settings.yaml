@@ -6,8 +6,9 @@ app:
 
 ingestion:
   max_chunk_tokens: 400
-  min_chunk_tokens: 30   # chưa được code sử dụng
-  chunk_overlap_lines: 5
+  min_chunk_tokens: 30          # chunk có phần thân nhỏ hơn mức này sẽ được gộp với chunk liền kề (0 = tắt gộp)
+  max_file_size_mb: 2           # bỏ qua file lớn hơn mức này
+  state_file: data/index_state.json
   supported_extensions:
     - '.py'
   ignore_dirs:
@@ -23,33 +24,35 @@ ingestion:
     - "logs"
     - ".pytest_cache"
     - ".mypy_cache"
+    - ".tox"
     - "site-packages"
+  ignore_path_parts:            # bỏ qua file nằm trong thư mục có tên này (ở bất kỳ cấp nào)
+    - "migrations"
 
-# Cau hinh chunk khi dung hybrid hoac chunking thong thuong (chua duoc code su dung)
-chunking:
-  chunk_size: 512
-  chunk_overlap: 50
-
-# Cau hinh embedding
+# Cau hinh embedding (chạy ONNX bằng onnxruntime, tokenizer lấy từ onnx_dir/tokenizer.json)
 embedding:
-  model: BAAI/bge-m3
-  device: auto
-  summary_workers: 4
-  max_seq_length: 1024
+  model: BAAI/bge-m3            # chỉ dùng để ghi log và fingerprint của index
+  device: cpu                   # auto | cpu | cuda (cuda cần onnxruntime-gpu)
+  onnx_dir: data/models/bge-m3-onnx
+  onnx_file: onnx/model_int8.onnx
+  max_seq_length: 512
   batch_size: 32
-  backend: torch
 
 # Cau hinh vector database luu tru chunk + embedding
 vector_database:
   type: qdrant
-  url: http://localhost:6333   # địa chỉ Qdrant server (đổi host/port thì sửa ở đây)
-  api_key: null               # nếu dùng Qdrant Cloud
+  url: http://localhost:6333    # địa chỉ Qdrant server (đổi host/port thì sửa ở đây)
+  api_key: null                 # nếu dùng Qdrant Cloud
   collection_name: repo
-  distance: cosine            # cosine | dot | euclid
-  vector_size: 1024           # phải bằng số chiều model embedding (BAAI/bge-m3 = 1024)
-  timeout: 30                 # connection timeout in seconds
+  distance: cosine              # cosine | dot | euclid
+  timeout: 30                   # connection timeout in seconds
+  upsert_batch_size: 64
+  hnsw_m: 16
+  hnsw_ef_construct: 100
+  fingerprint_path: data/index_fingerprint.json
+  chunker_version: 2            # tăng khi đổi cách chunk/payload -> bắt buộc index lại (run.py --reset)
   sparse_model: Qdrant/bm25
-  sparse_disable_stemmer: false   # true = tắt stemmer/stopword tiếng Anh của BM25 (bắt buộc index lại khi đổi)
+  sparse_disable_stemmer: false # true = tắt stemmer/stopword tiếng Anh của BM25 (bắt buộc index lại khi đổi)
 
 # Cau hinh model LLM
 llm:
@@ -58,18 +61,18 @@ llm:
   base_url: http://localhost:11434
   temperature: 0.2
   max_tokens: 1024
-  num_ctx: 8192                # cửa sổ context của Ollama; prompt được tự cắt cho vừa (num_ctx - max_tokens)
-  keep_alive: 30m              # giữ model trong bộ nhớ sau lần gọi cuối
-  timeout: 180                 # request timeout in seconds (lần gọi đầu phải nạp model nên cần dài)
+  num_ctx: 8192                 # cửa sổ context của Ollama; prompt được tự cắt cho vừa (num_ctx - max_tokens)
+  keep_alive: 30m               # giữ model trong bộ nhớ sau lần gọi cuối
+  timeout: 180                  # request timeout in seconds (lần gọi đầu phải nạp model nên cần dài)
 
 # Cau hinh RAG
 retrieval:
-  top_k: 10 # so luong chunk lay ve de dung lam context cho LLM
-  score_threshold: 0.0 # chua duoc code su dung (diem RRF cua hybrid khong phai cosine, khong so sanh truc tiep duoc)
+  top_k: 10                     # số chunk trả về để làm context cho LLM
 
-# Cau hinh reranking
+# Cau hinh reranking (cross-encoder chạy ONNX trên CPU)
 reranking:
-  model: cross-encoder/ms-marco-MiniLM-L-6-v2  # CrossEncoder model for reranking
-  device: cpu  # cpu or cuda
-  top_k: 5  # Final number of documents after reranking
-  candidates: 20  # So chunk lay tu retrieve de rerank, sau do giu top_k chunk tot nhat
+  model: cross-encoder/ms-marco-MiniLM-L-6-v2    # chỉ để tham khảo; tải bản ONNX từ repo này
+  onnx_dir: data/models/ms-marco-MiniLM-L-6-v2-onnx   # chứa tokenizer.json và thư mục onnx/
+  onnx_file: onnx/model_quint8_avx2.onnx
+  max_length: 384               # cắt cặp (query, chunk) tối đa số token này
+  candidates: 20                # số chunk lấy từ retrieve để rerank, sau đó giữ retrieval.top_k chunk tốt nhất

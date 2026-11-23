@@ -2,6 +2,7 @@
 import logging
 import hashlib
 from dataclasses import dataclass, field
+from functools import lru_cache
 from pathlib import Path
 
 from tree_sitter import Node
@@ -11,15 +12,21 @@ from ingestion.chunking.ast_utils import (
     get_node_name, extract_docstring, extract_signature, collect_syntax_errors,
     get_range_text, get_line_span, expand_start_byte_to_include_comments,
     split_ast_body_ranges, build_line_map, clean_segment_text,
-    extract_decorators, get_relevant_imports, is_async_def, extract_calls
+    extract_decorators, get_relevant_imports, is_async_def, extract_calls,
+    collect_module_imports,
 )
-from ingestion.chunking.splitter import count_tokens_approx, generate_chunk_id, split_large_text_ranges
+from ingestion.chunking.splitter import (
+    MAX_SEQ_LENGTH, count_tokens_approx, generate_chunk_id, split_large_text_ranges,
+)
 
 logger = logging.getLogger('ingestion')
 
 _DEF_TYPES = ('function_definition', 'class_definition')
 _MEMBER_TYPES = _DEF_TYPES + ('decorated_definition',)
 MAX_ERRORS_PER_CHUNK = 20  # số lỗi tối đa lưu trong metadata mỗi chunk (has_syntax_error vẫn tính trên toàn bộ lỗi)
+MAX_HEADER_IMPORTS = 10  # số câu lệnh import tối đa in trong header (metadata 'imports' vẫn giữ đầy đủ)
+MAX_HEADER_IMPORT_CHARS = 300
+HEADER_TOKEN_MARGIN = 100  # phần dự phòng cho header/signature so với max_seq_length của embedder
 # Chỉ đi sâu vào các node statement có thể chứa def/class (không duyệt xuống biểu thức).
 # 'ERROR': với file lỗi cú pháp, tree-sitter có thể bọc def/class trong node ERROR.
 _CONTAINER_TYPES = {
@@ -31,11 +38,13 @@ _CONTAINER_TYPES = {
 
 _HEADER_PREFIXES = ('# File:', '# Class:', '# Node:', '# Imports:', '# Decorators:', '# Signature:', '# Docstring:')
 
+
 @dataclass
 class _FileContext:
     """Trạng thái dùng chung khi chunk một file."""
     source_bytes: bytes
     relative_path: str
+    repo_name: str
     directory_path: str
     ext: str
     errors: list[dict]
@@ -46,8 +55,19 @@ class _FileContext:
     covered_ranges: list[tuple[int, int]] = field(default_factory=list)
     id_counts: dict[str, int] = field(default_factory=dict)
 
+
 def _compute_content_hash(text: str) -> str:
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+@lru_cache(maxsize=None)
+def _warn_budget(max_chunk_tokens: int) -> None:
+    if max_chunk_tokens + HEADER_TOKEN_MARGIN > MAX_SEQ_LENGTH:
+        logger.warning(
+            f"max_chunk_tokens={max_chunk_tokens} cộng phần header vượt max_seq_length={MAX_SEQ_LENGTH} "
+            f"của embedder, chunk có thể bị cắt khi embed."
+        )
+
 
 def _build_enriched_header(
     relative_path: str,
@@ -65,14 +85,17 @@ def _build_enriched_header(
     if qualified_name and not qualified_name.endswith("anonymous"):
         lines.append(f"# Node: {qualified_name}")
     if relevant_imports:
-        lines.append(f"# Imports: {' | '.join(relevant_imports)}")
+        imps = ' | '.join(relevant_imports[:MAX_HEADER_IMPORTS])
+        if len(imps) > MAX_HEADER_IMPORT_CHARS or len(relevant_imports) > MAX_HEADER_IMPORTS:
+            imps = imps[:MAX_HEADER_IMPORT_CHARS].rstrip(' |') + ' ...'
+        lines.append(f"# Imports: {imps}")
     if decorators:
         lines.append(f"# Decorators: {', '.join(decorators)}")
     if signature:
         sig = ' '.join(signature.split())
-        for d in decorators or []:
-            sig = sig.replace(' '.join(d.split()), '', 1)  # header chỉ giữ dòng def, decorator đã có dòng riêng
-        lines.append(f"# Signature: {sig.strip()}")
+        for d in sorted(decorators or [], key=len, reverse=True):
+            sig = sig.replace(' '.join(d.split()), '')  # header chỉ giữ dòng def, decorator đã có dòng riêng
+        lines.append(f"# Signature: {' '.join(sig.split())}")
     if docstring:
         short_doc = ' '.join(docstring.split())[:200]
         lines.append(f"# Docstring: {short_doc}")
@@ -133,11 +156,12 @@ def _build_chunk_metadata(
 
 
 def _unique_chunk_id(ctx: _FileContext, identity: str) -> str:
-    """ID ổn định theo (đường dẫn, tên đầy đủ, loại, part); trùng identity trong cùng file thì thêm số thứ tự xuất hiện."""
+    """ID ổn định theo (repo, đường dẫn, tên đầy đủ, loại, part); trùng identity trong cùng file thì thêm số thứ tự xuất hiện."""
     n = ctx.id_counts.get(identity, 0)
     ctx.id_counts[identity] = n + 1
     final_identity = identity if n == 0 else f'{identity}#{n}'
-    return generate_chunk_id(ctx.relative_path, final_identity)
+    return generate_chunk_id(f'{ctx.repo_name}:{ctx.relative_path}', final_identity)
+
 
 def _append_chunk_record(
     ctx: _FileContext,
@@ -209,6 +233,7 @@ def _append_chunk_record(
     })
     return chunk_id
 
+
 def _add_ast_node_chunks(
     ctx: _FileContext,
     outer_node: Node,
@@ -251,8 +276,11 @@ def _add_ast_node_chunks(
         if count_tokens_approx(part_text) <= budget:
             expanded_parts.append((part_text, p_start, p_end, idx > 0))
         else:
-            for sub_idx, (sub_t, f_off, l_off) in enumerate(split_large_text_ranges(part_text, budget, overlap_lines=0)):
+            for sub_idx, (sub_t, f_off, l_off) in enumerate(split_large_text_ranges(part_text, budget)):
                 expanded_parts.append((sub_t, p_start + f_off, p_start + l_off, idx > 0 or sub_idx > 0))
+
+    is_async = is_async_def(target_node, ctx.source_bytes)
+    calls = extract_calls(target_node, ctx.source_bytes)
 
     total_parts = len(expanded_parts)
     sig_last = signature.split('\n')[-1].strip()
@@ -284,9 +312,9 @@ def _add_ast_node_chunks(
             chunk_errors,
             signature=signature,
             decorators=decorators,
-            is_async=is_async_def(target_node, ctx.source_bytes),
+            is_async=is_async,
             imports=relevant_imports,
-            calls=extract_calls(target_node, ctx.source_bytes),
+            calls=calls,
             start_byte=start_byte,
             end_byte=end_byte,
             parent_class_id=parent_class_id,
@@ -336,7 +364,7 @@ def _add_raw_chunk(
     else:
         line_of = [None] * n_lines
 
-    ranges = split_large_text_ranges(content, budget, overlap_lines=0)
+    ranges = split_large_text_ranges(content, budget)
     total_parts = len(ranges)
     ids: list[str] = []
     for part, (sub_text, first, last) in enumerate(ranges):
@@ -481,10 +509,13 @@ def _split_header(content: str) -> tuple[str, str]:
 
 
 def _merge_small_chunks(ctx: _FileContext) -> list[dict]:
-    """Gộp các function/method liền kề (cùng parent_class) hoặc module_header liền kề nếu một bên quá nhỏ (đếm trên phần thân)."""
+    """Gộp các function/method liền kề (cùng parent_class) hoặc module_header liền kề nếu một bên quá nhỏ (đếm trên phần thân).
+    'Liền kề' nghĩa là giữa hai chunk trong file chỉ có dòng trống."""
     if ctx.min_chunk_tokens <= 0 or len(ctx.chunks) <= 1:
         return ctx.chunks
 
+    src_lines = ctx.source_bytes.split(b'\n')
+    funcs = ('function', 'method')
     merged: list[dict] = []
     for chunk in ctx.chunks:
         if not merged:
@@ -493,28 +524,38 @@ def _merge_small_chunks(ctx: _FileContext) -> list[dict]:
 
         prev = merged[-1]
         pm, cm = prev['metadata'], chunk['metadata']
-        funcs = ('function', 'method')
         same_scope = pm['total_parts'] == 1 and cm['total_parts'] == 1 and (
             (pm['chunk_type'] == cm['chunk_type'] == 'module_header')
             or (pm['chunk_type'] in funcs and cm['chunk_type'] in funcs and pm['parent_class'] == cm['parent_class'])
         )
-        if not same_scope:
+        adjacent = same_scope and cm['start_line'] > pm['end_line'] and not any(
+            l.strip() for l in src_lines[pm['end_line']:cm['start_line'] - 1]
+        )
+        if not adjacent:
             merged.append(chunk)
             continue
 
-        prev_header, prev_body = _split_header(prev['content'])
+        _, prev_body = _split_header(prev['content'])
         _, curr_body = _split_header(chunk['content'])
         if min(count_tokens_approx(prev_body), count_tokens_approx(curr_body)) >= ctx.min_chunk_tokens:
             merged.append(chunk)
             continue
 
-        combined = f"{prev_header}\n{prev_body.strip(chr(10))}\n\n{curr_body.strip(chr(10))}"
+        name = f"{pm['node_name']}+{cm['node_name']}"
+        qname = f"{pm['parent_class']}.{name}" if pm['parent_class'] else name
+        signature = ' | '.join(s for s in (pm['signature'], cm['signature']) if s)
+        decorators = pm['decorators'] + [d for d in cm['decorators'] if d not in pm['decorators']]
+        imports = pm['imports'] + [i for i in cm['imports'] if i not in pm['imports']]
+        docstring = f"{pm['docstring']}\n{cm['docstring']}".strip()
+
+        new_header = _build_enriched_header(
+            ctx.relative_path, pm['parent_class'], qname,
+            signature=signature, decorators=decorators, docstring=docstring, relevant_imports=imports,
+        )
+        combined = f"{new_header}{prev_body.strip(chr(10))}\n\n{curr_body.strip(chr(10))}"
         if count_tokens_approx(combined) > ctx.max_chunk_tokens:
             merged.append(chunk)
             continue
-
-        name = f"{pm['node_name']}+{cm['node_name']}"
-        qname = f"{pm['parent_class']}.{name}" if pm['parent_class'] else name
 
         prev['content'] = combined
         prev['id'] = _unique_chunk_id(ctx, f"{qname}:{pm['chunk_type']}:0")
@@ -527,12 +568,12 @@ def _merge_small_chunks(ctx: _FileContext) -> list[dict]:
             part_end_line=max(pm['part_end_line'], cm['part_end_line']),
             start_byte=min(pm['start_byte'], cm['start_byte']),
             end_byte=max(pm['end_byte'], cm['end_byte']),
-            signature=' | '.join(s for s in (pm['signature'], cm['signature']) if s),
-            decorators=pm['decorators'] + [d for d in cm['decorators'] if d not in pm['decorators']],
-            imports=pm['imports'] + [i for i in cm['imports'] if i not in pm['imports']],
+            signature=signature,
+            decorators=decorators,
+            imports=imports,
             calls=pm['calls'] + [c for c in cm['calls'] if c not in pm['calls']],
             is_async=pm['is_async'] or cm['is_async'],
-            docstring=f"{pm['docstring']}\n{cm['docstring']}".strip(),
+            docstring=docstring,
             has_syntax_error=pm['has_syntax_error'] or cm['has_syntax_error'],
             syntax_errors=(pm['syntax_errors'] + [e for e in cm['syntax_errors'] if e not in pm['syntax_errors']])[:MAX_ERRORS_PER_CHUNK],
             content_hash=_compute_content_hash(combined),
@@ -548,7 +589,11 @@ def chunk_file(
 ) -> list[dict]:
     path_obj = Path(file_path).resolve()
     root_obj = Path(repo_root).resolve()
-    relative_path = path_obj.relative_to(root_obj).as_posix()
+    try:
+        relative_path = path_obj.relative_to(root_obj).as_posix()
+    except ValueError:
+        logger.warning(f"Bỏ qua file nằm ngoài repo_root ({root_obj}): {file_path}")
+        return []
     parent = Path(relative_path).parent.as_posix()
     directory_path = '' if parent == '.' else parent
 
@@ -559,6 +604,9 @@ def chunk_file(
         logger.exception(f"Failed to read file: {file_path}")
         return []
 
+    if source_bytes.startswith(b'\xef\xbb\xbf'):  # BOM UTF-8
+        source_bytes = source_bytes[3:]
+
     if not source_bytes.strip():
         return []
 
@@ -568,13 +616,25 @@ def chunk_file(
         logger.warning(f"Bỏ qua file do chưa hỗ trợ parser cho định dạng {ext}: {relative_path}")
         return []
 
+    _warn_budget(max_chunk_tokens)
+
     root_node = parser.parse(source_bytes).root_node
 
     errors = collect_syntax_errors(root_node, source_bytes) if root_node.has_error else []
     if errors:
         logger.warning(f"Syntax error ({len(errors)} vị trí), vẫn chunk và đánh dấu: {relative_path}")
 
-    ctx = _FileContext(source_bytes, relative_path, directory_path, ext, errors, max_chunk_tokens, min_chunk_tokens)
+    ctx = _FileContext(
+        source_bytes=source_bytes,
+        relative_path=relative_path,
+        repo_name=root_obj.name,
+        directory_path=directory_path,
+        ext=ext,
+        errors=errors,
+        max_chunk_tokens=max_chunk_tokens,
+        min_chunk_tokens=min_chunk_tokens,
+    )
+    ctx.module_imports = collect_module_imports(root_node, source_bytes)
     _process_node(ctx, root_node)
 
     if not ctx.covered_ranges:

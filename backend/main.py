@@ -1,26 +1,18 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 
-app = FastAPI()
-
-@app.get('/')
-def home():
-    return {'hello': 'world'}
-
-@app.get('item/{item_id}')
-def get_item(item_id: int):
-    return {
-        'item_id': item_id,
-        'name': f'{item_id}',
-    }
-
-from pydantic import BaseModel
-
-class Item(BaseModel):
-    name: str
-    price: float
-
-@app.post("/items")
-def create_item(item: Item):
-    return {"received": item, "total_with_vat": item.price * 1.1}
+from app.api import index
+from app.core.config import settings
+from app.services.rag_runtime import runtime
 
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    runtime.start()  # nạp model + watcher ở thread nền
+    yield
+    runtime.stop()
+
+
+app = FastAPI(title=settings.app_name, lifespan=lifespan)
+app.include_router(index.router)

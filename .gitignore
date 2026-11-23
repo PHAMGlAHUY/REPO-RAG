@@ -1,1 +1,10 @@
+.env
 data/summary_cache.sqlite
+Dockerfile
+docker-compose.yaml
+RAG/data/model_cache/
+RAG/data/models/
+RAG/data/index_state.json
+RAG/data/index_fingerprint.json
+RAG/data/last_repo.txt
+RAG/logs/

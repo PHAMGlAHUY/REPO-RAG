@@ -1,0 +1,9 @@
+pyyaml
+numpy
+sentence-transformers
+torch
+qdrant-client>=1.16
+fastembed
+fastapi
+uvicorn[standard]
+watchdog

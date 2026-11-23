@@ -1,27 +1,31 @@
-import argparse
 from collections import Counter
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Callable
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchAny
 
-from config.load_config import load_settings
+from config.load_config import load_settings, _resolve
 from vectorstore.qdrant import VECTOR_DB_COLLECTION
 from vectorstore.search import build_filter, eq, exact_lookup, search
 
-RETRIEVAL_TOP_K = (load_settings().get('retrieval') or {}).get('top_k', 5)
-RERANK_CANDIDATES = 40
+_settings = load_settings()
+RETRIEVAL_TOP_K = int((_settings.get('retrieval') or {}).get('top_k', 5))
+_RERANK_CFG = _settings.get('reranking') or {}
+RERANK_CANDIDATES = int(_RERANK_CFG.get('candidates', 30))
 CALLABLE_TYPES = ['function', 'method']
+_SCROLL_CAP = 1000
 
 # (query, chunks) -> điểm cho từng chunk, cùng thứ tự
 RerankerFn = Callable[[str, list['RetrievedChunk']], list[float]]
 
-# giả định tên payload do chunker ghi; phần còn lại nằm trong metadata
+# tên payload do chunker/index ghi; phần còn lại nằm trong metadata
 _PAYLOAD_FIELDS = (
-    'file_path', 'qualified_name', 'name', 'chunk_type', 'start_line', 'end_line',
-    'is_async', 'parent_class_id', 'part_index', 'part_total', 'calls',
+    'file_path', 'qualified_name', 'qualified_names', 'name', 'names', 'chunk_type', 'start_line', 'end_line',
+    'is_async', 'parent_class_id', 'part_index', 'total_parts', 'calls',
 )
+_HEADER_PREFIXES = ('# File:', '# Class:', '# Node:', '# Imports:', '# Decorators:', '# Signature:', '# Docstring:')
 
 
 @dataclass
@@ -30,16 +34,19 @@ class RetrievedChunk:
     content: str
     score: float | None = None
     rerank_score: float | None = None
+    exact: bool = False  # khớp chính xác tên (exact_lookup), không có score
     file_path: str | None = None
     qualified_name: str | None = None
+    qualified_names: list[str] = field(default_factory=list)
     name: str | None = None
+    names: list[str] = field(default_factory=list)
     chunk_type: str = ''
     start_line: int | None = None
     end_line: int | None = None
     is_async: bool = False
     parent_class_id: str | None = None
     part_index: int | None = None
-    part_total: int | None = None
+    total_parts: int | None = None
     calls: list[str] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
     parent: 'RetrievedChunk | None' = None
@@ -50,6 +57,8 @@ class RetrievedChunk:
         self.chunk_type = self.chunk_type or ''
         self.is_async = bool(self.is_async)
         self.name = self.name or (self.qualified_name or '').rpartition('.')[2] or None
+        self.names = self.names or ([self.name] if self.name else [])
+        self.qualified_names = self.qualified_names or ([self.qualified_name] if self.qualified_name else [])
 
     @classmethod
     def from_point(cls, p) -> 'RetrievedChunk':
@@ -60,26 +69,104 @@ class RetrievedChunk:
         return cls(id=str(p.id), content=content, score=getattr(p, 'score', None), metadata=payload, **known)
 
 
-def cross_encoder_reranker(model: str = 'BAAI/bge-reranker-v2-m3', batch_size: int = 16) -> RerankerFn:
-    from sentence_transformers import CrossEncoder
+def onnx_reranker(model: str | None = None, batch_size: int = 16) -> RerankerFn:
+    """Cross-encoder chạy bằng onnxruntime (CPU). `model` (tuỳ chọn) ghi đè reranking.onnx_file."""
+    import os
+    import numpy as np
+    import onnxruntime as ort
+    from tokenizers import Tokenizer
 
-    ce = CrossEncoder(model)
+    cfg = _RERANK_CFG
+    if not cfg.get('onnx_dir'):
+        raise ValueError("reranking.onnx_dir chưa được cấu hình")
+    base = Path(_resolve(cfg['onnx_dir']))
+
+    so = ort.SessionOptions()
+    so.intra_op_num_threads = os.cpu_count() or 4
+    sess = ort.InferenceSession(str(base / (model or cfg['onnx_file'])), so, providers=['CPUExecutionProvider'])
+    input_names = {i.name for i in sess.get_inputs()}
+
+    tok = Tokenizer.from_file(str(base / 'tokenizer.json'))
+    tok.enable_truncation(max_length=int(cfg.get('max_length', 384)))
+    pad_token = next((t for t in ('[PAD]', '<pad>') if tok.token_to_id(t) is not None), '[PAD]')
+    tok.enable_padding(pad_id=tok.token_to_id(pad_token) or 0, pad_token=pad_token)
 
     def rerank(query: str, chunks: list[RetrievedChunk]) -> list[float]:
-        pairs = [(query, f'{c.qualified_name or ""}\n{c.content}') for c in chunks]
-        return ce.predict(pairs, batch_size=batch_size).tolist()
+        texts = [f'{c.qualified_name or ""}\n{c.content}' for c in chunks]
+        scores: list[float] = []
+        for s in range(0, len(texts), batch_size):
+            enc = tok.encode_batch([(query, t) for t in texts[s:s + batch_size]])
+            feed = {
+                'input_ids': np.array([e.ids for e in enc], dtype=np.int64),
+                'attention_mask': np.array([e.attention_mask for e in enc], dtype=np.int64),
+                'token_type_ids': np.array([e.type_ids for e in enc], dtype=np.int64),
+            }
+            out = sess.run(None, {k: v for k, v in feed.items() if k in input_names})[0]
+            scores.extend(np.asarray(out, dtype=np.float32).reshape(len(enc), -1)[:, -1].tolist())
+        return scores
 
     return rerank
+
+
+cross_encoder_reranker = onnx_reranker  # tên cũ
 
 
 def _dedup(chunks: list[RetrievedChunk], max_per_file: int | None = None) -> list[RetrievedChunk]:
     seen, per_file, out = set(), Counter(), []
     for c in chunks:
-        key = (c.file_path, c.qualified_name or c.id)
-        if key in seen or (max_per_file and per_file[c.file_path] >= max_per_file):
+        if c.id in seen or (max_per_file and per_file[c.file_path] >= max_per_file):
             continue
-        seen.add(key)
+        seen.add(c.id)
         per_file[c.file_path] += 1
+        out.append(c)
+    return out
+
+
+def _scroll_all(client: QdrantClient, flt: Filter, cap: int = _SCROLL_CAP) -> list:
+    points: list = []
+    offset = None
+    while len(points) < cap:
+        batch, offset = client.scroll(
+            VECTOR_DB_COLLECTION, scroll_filter=flt, limit=min(256, cap - len(points)),
+            offset=offset, with_payload=True,
+        )
+        points.extend(batch)
+        if offset is None:
+            break
+    return points
+
+
+def _strip_header(content: str) -> str:
+    lines = content.split('\n')
+    i = 0
+    while i < len(lines) and lines[i].startswith(_HEADER_PREFIXES):
+        i += 1
+    return '\n'.join(lines[i:])
+
+
+def _merge_parts(client: QdrantClient, chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
+    """Chunk nhiều part -> lấy đủ các part cùng hàm/class, ghép thành một chunk (đặt tại vị trí part tốt nhất)."""
+    out: list[RetrievedChunk] = []
+    done: set[tuple] = set()
+    for c in chunks:
+        if (c.total_parts or 1) <= 1:
+            out.append(c)
+            continue
+        key = (c.file_path, c.qualified_name, c.chunk_type)
+        if key in done:
+            continue
+        done.add(key)
+        flt = Filter(must=[eq('file_path', c.file_path), eq('qualified_name', c.qualified_name),
+                           eq('chunk_type', c.chunk_type)])
+        parts: dict[int, RetrievedChunk] = {}
+        for p in _scroll_all(client, flt, cap=200):
+            d = RetrievedChunk.from_point(p)
+            if d.total_parts == c.total_parts and d.part_index is not None:
+                parts.setdefault(d.part_index, d)
+        parts.setdefault(c.part_index or 1, c)
+        ordered = [parts[i] for i in sorted(parts)]
+        c.content = '\n'.join([ordered[0].content, *(_strip_header(d.content) for d in ordered[1:])])
+        c.metadata['merged_parts'] = len(ordered)
         out.append(c)
     return out
 
@@ -102,55 +189,31 @@ def _expand_parents(client: QdrantClient, chunks: list[RetrievedChunk]) -> None:
             chunk.parent = parents.get(str(chunk.parent_class_id))
 
 
-def _merge_parts(client: QdrantClient, chunks: list[RetrievedChunk], window: int = 1) -> None:
-    parted = [c for c in chunks if (c.part_total or 0) > 1 and c.part_index is not None]
-    if not parted:
-        return
-    flt = Filter(should=[Filter(must=[eq('file_path', c.file_path), eq('qualified_name', c.qualified_name)]) for c in parted])
-    points, _ = client.scroll(VECTOR_DB_COLLECTION, scroll_filter=flt, limit=1000, with_payload=True)
-    groups: dict[tuple, list[RetrievedChunk]] = {}
-    for p in points:
-        s = RetrievedChunk.from_point(p)
-        groups.setdefault((s.file_path, s.qualified_name), []).append(s)
-    for chunk in parted:
-        near = sorted(
-            (s for s in groups.get((chunk.file_path, chunk.qualified_name), []) if s.part_index is not None and abs(s.part_index - chunk.part_index) <= window),
-            key=lambda s: s.part_index,
-        )
-        if len(near) > 1:
-            chunk.content = '\n'.join(s.content for s in near)
-            start_lines = [s.start_line for s in near if s.start_line is not None]
-            if start_lines:
-                chunk.start_line = min(start_lines)
-            end_lines = [s.end_line for s in near if s.end_line is not None]
-            if end_lines:
-                chunk.end_line = max(end_lines)
-
-
 def _locality(d: RetrievedChunk, c: RetrievedChunk) -> tuple[bool, bool, bool]:
     cls = lambda x: (x.qualified_name or '').rpartition('.')[0]
     folder = lambda x: (x.file_path or '').rpartition('/')[0]
     return d.file_path == c.file_path, cls(d) == cls(c), folder(d) == folder(c)
 
 
-def _expand_calls(client: QdrantClient, chunks: list[RetrievedChunk], max_calls: int = 4, max_related: int = 2) -> None:
-    wanted = [[call.split('(')[0].rpartition('.')[2].strip() for call in c.calls[:max_calls]] for c in chunks]
+def _expand_calls(client: QdrantClient, chunks: list[RetrievedChunk], max_related: int = 2) -> None:
+    wanted = [[call.split('(')[0].rpartition('.')[2].strip() for call in c.calls] for c in chunks]
     names = sorted({n for ns in wanted for n in ns if n})
     if not names:
         return
     flt = Filter(must=[
-        FieldCondition(key='name', match=MatchAny(any=names)),
+        FieldCondition(key='names', match=MatchAny(any=names)),
         FieldCondition(key='chunk_type', match=MatchAny(any=CALLABLE_TYPES)),
     ])
-    points, _ = client.scroll(VECTOR_DB_COLLECTION, scroll_filter=flt, limit=200, with_payload=True)
     seen = {c.id for c in chunks}
     by_name: dict[str, list[RetrievedChunk]] = {}
-    for p in points:
+    for p in _scroll_all(client, flt):
         d = RetrievedChunk.from_point(p)
-        if d.id not in seen:
-            by_name.setdefault(d.name, []).append(d)
+        if d.id in seen:
+            continue
+        for n in d.names:
+            by_name.setdefault(n, []).append(d)
     for c, ns in zip(chunks, wanted):
-        related = {}
+        related: dict[str, RetrievedChunk] = {}
         for n in ns:
             if options := by_name.get(n):
                 best = max(options, key=lambda d: _locality(d, c))
@@ -162,13 +225,13 @@ def retrieve(
     client: QdrantClient,
     query: str,
     top_k: int | None = None,
-    candidates: int | None = None,  # mặc định 20; 40 khi có reranker
+    candidates: int | None = None,  # mặc định 20; reranking.candidates khi có reranker
     mode: str = 'auto',  # 'auto' | 'hybrid' | 'dense' | 'sparse'
     chunk_type: str | list[str] | None = None,
     file_path: str | None = None,
     exclude_syntax_errors: bool = False,
     max_per_file: int | None = None,
-    min_score: float | None = None,  # so với rerank_score nếu có reranker, ngược lại so với score RRF
+    min_score: float | None = None,  # chỉ áp dụng cho rerank_score (cần reranker); chunk khớp chính xác luôn được giữ
     reranker: RerankerFn | None = None,
     expand_parent: bool = False,
     merge_parts: bool = False,
@@ -185,63 +248,25 @@ def retrieve(
     points = search(client, query, limit=candidates, prefetch_limit=2 * candidates, mode=mode, flt=flt)
     exact = exact_lookup(client, query, top_k, flt) if mode == 'auto' else []
 
-    chunks = [RetrievedChunk.from_point(p) for p in [*exact, *points]]
-    for c in chunks[:len(exact)]:
-        c.score = float('inf')
-    chunks = _dedup(chunks)
+    exact_chunks = [RetrievedChunk.from_point(p) for p in exact]
+    for c in exact_chunks:
+        c.exact = True
+    chunks = _dedup([*exact_chunks, *(RetrievedChunk.from_point(p) for p in points)])
 
-    if reranker:
+    if reranker and chunks:
         for c, s in zip(chunks, reranker(query, chunks)):
             c.rerank_score = s
-        chunks.sort(key=lambda c: c.rerank_score, reverse=True)
-    if min_score is not None:
-        chunks = [c for c in chunks if (c.rerank_score if reranker else c.score) >= min_score]
+        pinned = [c for c in chunks if c.exact]
+        rest = sorted((c for c in chunks if not c.exact), key=lambda c: c.rerank_score, reverse=True)
+        chunks = pinned + rest
+        if min_score is not None:
+            chunks = [c for c in chunks if c.exact or c.rerank_score >= min_score]
     chunks = _dedup(chunks, max_per_file)[:top_k]
 
+    if chunks and merge_parts:
+        chunks = _merge_parts(client, chunks)
     if chunks and expand_parent:
         _expand_parents(client, chunks)
-    if chunks and merge_parts:
-        _merge_parts(client, chunks)
     if chunks and expand_calls:
         _expand_calls(client, chunks)
     return chunks
-
-
-def _header(chunk: RetrievedChunk) -> str:
-    tag = ' [async]' if chunk.is_async else ''
-    return f'[{chunk.file_path}:{chunk.start_line}-{chunk.end_line}] {chunk.chunk_type}{tag} {chunk.qualified_name or ""}'.strip()
-
-
-def format_context(chunks: list[RetrievedChunk], include_parent_class: bool = False, include_calls: bool = True) -> str:
-    parts = []
-    for chunk in chunks:
-        block = f'{_header(chunk)}\n{chunk.content}'
-        if include_parent_class and chunk.parent:
-            block += f'\n\n# --- Parent Class Context ({chunk.parent.qualified_name}) ---\n{chunk.parent.content}'
-        if include_calls:
-            for r in chunk.related_calls:
-                block += f'\n\n# --- Called Definition: {r.qualified_name} ---\n{r.content}'
-        parts.append(block)
-    return '\n\n---\n\n'.join(parts)
-
-
-if __name__ == '__main__':  # python -m retrieval.retriever "hàm xử lý login" --mode auto --top-k 5 [--rerank]
-    from vectorstore.qdrant import close_qdrant_client, ensure_collection, get_qdrant_client
-    from vectorstore.search import ensure_payload_indexes
-
-    ap = argparse.ArgumentParser()
-    ap.add_argument('query', nargs='+')
-    ap.add_argument('--mode', default='auto', choices=['auto', 'hybrid', 'dense', 'sparse'])
-    ap.add_argument('--top-k', type=int)
-    ap.add_argument('--rerank', action='store_true')
-    args = ap.parse_args()
-
-    db = get_qdrant_client()
-    try:
-        ensure_collection(db)
-        ensure_payload_indexes(db)
-        reranker = cross_encoder_reranker() if args.rerank else None
-        for c in retrieve(db, ' '.join(args.query), top_k=args.top_k, mode=args.mode, reranker=reranker):
-            print(f'{c.rerank_score if reranker else c.score:.4f}  {_header(c)}')
-    finally:
-        close_qdrant_client()

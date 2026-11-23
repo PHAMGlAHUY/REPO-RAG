@@ -2,7 +2,8 @@ import MessageContent from './MessageContent';
 
 export default function MessageItem({ message, pending }) {
   const isUser = message.role === 'user';
-  const waiting = pending && !message.content;
+  const text = message.content || message.error || '';
+  const waiting = pending && !text;
 
   return (
     <li className={`msg ${isUser ? 'msg--user' : 'msg--bot'} ${message.error ? 'msg--error' : ''}`}>
@@ -13,7 +14,7 @@ export default function MessageItem({ message, pending }) {
             <i /><i /><i />
           </span>
         ) : (
-          <MessageContent text={message.content} />
+          <MessageContent text={text} />
         )}
       </div>
     </li>

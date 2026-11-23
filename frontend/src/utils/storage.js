@@ -3,7 +3,9 @@ const KEY = 'chat-ui:v1';
 export function loadState() {
   try {
     const raw = localStorage.getItem(KEY);
-    return raw ? JSON.parse(raw) : null;
+    if (!raw) return null;
+    const data = JSON.parse(raw);
+    return data && typeof data === 'object' && Array.isArray(data.conversations) ? data : null;
   } catch {
     return null;
   }

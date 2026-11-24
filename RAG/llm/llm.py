@@ -17,6 +17,7 @@ from .prompt import (
     build_messages,
     build_rewrite_messages,
     invalid_citations,
+    is_vietnamese,
     no_answer_text,
 )
 
@@ -26,14 +27,17 @@ MAX_REWRITE_CHARS = 300
 WARN_RATIO = 0.95
 _RETRYABLE = (ConnectionError, TimeoutError, httpx.TransportError)
 
-_REWRITE_PREFIX_RE = re.compile(r"^\s*(?:truy vấn(?: độc lập)?|câu hỏi(?: độc lập)?|query)\s*:\s*", re.I)
+_REWRITE_PREFIX_RE = re.compile(r"^\s*(?:truy vấn(?: tiếng anh| độc lập)?|câu hỏi(?: độc lập)?|(?:english |standalone )?query)\s*:\s*", re.I)
 _THINK_RE = re.compile(r"<think>.*?</think>", re.S)
 _IDENT_RE = re.compile(r"\b\w+_\w+\b|\b[a-z]+[A-Z]\w*\b|\b\w+\.\w+\b")
 _PRONOUN_RE = re.compile(r"\b(nó|này|đó|kia|trên|vậy|it|this|that|them)\b", re.I)
 
 
 def needs_rewrite(question: str, history: Sequence[Message]) -> bool:
-    """Câu hỏi đã tự đủ nghĩa (có định danh, hoặc dài và không có đại từ mơ hồ) thì khỏi rewrite."""
+    """Câu hỏi tiếng Việt luôn được chuyển sang truy vấn tiếng Anh (BM25 + reranker chỉ mạnh với tiếng Anh).
+    Câu hỏi khác chỉ rewrite khi thiếu ngữ cảnh (đại từ mơ hồ, quá ngắn, không có định danh)."""
+    if is_vietnamese(question):
+        return True
     if not history:
         return False
     if _PRONOUN_RE.search(question):
@@ -74,10 +78,11 @@ class LLMClient:
         retries: int = 3,
         client: Any = None,
         check_model: bool = True,
-        keep_alive: str | None = None
+        keep_alive: str | None = None,
     ):
         self.model = model
         self.retries = retries
+        self.keep_alive = keep_alive
         self._cpt = float(CHARS_PER_TOKEN)  # ký tự/token, tự hiệu chỉnh theo prompt_eval_count
         self._params = dict(
             num_ctx=num_ctx, max_tokens=max_tokens, temperature=temperature,
@@ -182,7 +187,13 @@ class LLMClient:
     def rewrite_query(self, question: str, history: Sequence[Message]) -> str:
         if not needs_rewrite(question, history):
             return question
-        raw = self.generate(build_rewrite_messages(question, history), think=False, temperature=0.0, max_tokens=128)
+        messages = build_rewrite_messages(question, history)
+        try:
+            raw = self.generate(messages, think=False, temperature=0.0, max_tokens=128)
+        except _RETRYABLE:
+            raise
+        except Exception:  # model không hỗ trợ tham số `think`
+            raw = self.generate(messages, temperature=0.0, max_tokens=128)
         return clean_rewritten_query(raw, question)
 
     def answer(

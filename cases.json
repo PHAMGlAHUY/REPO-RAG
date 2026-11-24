@@ -1,0 +1,128 @@
+[
+  {
+    "query": "Hàm nào khởi tạo cross-encoder reranker chạy bằng onnxruntime trên CPU?",
+    "relevant": ["retrieval/retriever.py::onnx_reranker"]
+  },
+  {
+    "query": "Hàm nào là điểm vào truy xuất: tìm kiếm, rerank và luôn giữ chunk khớp tên chính xác ở đầu danh sách?",
+    "relevant": ["retrieval/retriever.py::retrieve"]
+  },
+  {
+    "query": "Làm sao nạp model embedding đúng một lần và an toàn khi nhiều thread cùng gọi?",
+    "relevant": ["embedding/embedder.py::get_model"]
+  },
+  {
+    "query": "Hàm nào chuyển danh sách văn bản thành vector dense đã chuẩn hóa, có thêm tiền tố query hoặc document?",
+    "relevant": ["embedding/embedder.py::embed_texts"]
+  },
+  {
+    "query": "Phương thức nào chạy ONNX theo từng batch và sắp xếp văn bản theo số token để giảm padding?",
+    "relevant": ["embedding/embedder.py::OnnxEmbedder.encode"]
+  },
+  {
+    "query": "Hàm nào tạo collection Qdrant gồm vector dense, vector sparse và quantization INT8?",
+    "relevant": ["vectorstore/qdrant.py::ensure_collection"]
+  },
+  {
+    "query": "Hàm nào kiểm tra fingerprint của index để phát hiện đổi model, sparse model hoặc phiên bản chunker?",
+    "relevant": ["vectorstore/qdrant.py::check_fingerprint"]
+  },
+  {
+    "query": "Hàm nào dựng danh sách PointStruct chứa cả vector dense lẫn sparse từ các chunk?",
+    "relevant": ["vectorstore/index.py::create_qdrant_points"]
+  },
+  {
+    "query": "Hàm nào nạp mô hình sparse BM25 của fastembed, ưu tiên cache cục bộ trước khi tải từ mạng?",
+    "relevant": ["vectorstore/index.py::get_sparse_embedder"]
+  },
+  {
+    "query": "Hàm nào tạo payload cho mỗi chunk gồm names, qualified_names, extra và content?",
+    "relevant": ["vectorstore/index.py::_build_payload"]
+  },
+  {
+    "query": "Hàm nào thực hiện tìm kiếm hybrid dense và sparse rồi hợp nhất bằng RRF có trọng số?",
+    "relevant": ["vectorstore/search.py::search"]
+  },
+  {
+    "query": "Hàm nào tra cứu chính xác theo tên hàm hoặc qualified name khi truy vấn là một định danh?",
+    "relevant": ["vectorstore/search.py::exact_lookup"]
+  },
+  {
+    "query": "Hàm nào ghép các part của một hàm dài đã bị tách thành một chunk duy nhất khi truy xuất?",
+    "relevant": ["retrieval/retriever.py::_merge_parts"]
+  },
+  {
+    "query": "Hàm nào nhận biết truy vấn có dạng định danh như parse_config, parseConfig hoặc Class.method?",
+    "relevant": ["vectorstore/search.py::is_identifier_query"]
+  },
+  {
+    "query": "Hàm nào xóa chunk cũ của file đã sửa nhưng giữ lại các id mới vừa upsert?",
+    "relevant": ["vectorstore/upsert.py::delete_stale"]
+  },
+  {
+    "query": "Hàm nào thử lại các lời gọi Qdrant khi lỗi tạm thời, với thời gian chờ tăng dần?",
+    "relevant": ["vectorstore/upsert.py::retry"]
+  },
+  {
+    "query": "Hàm nào upsert chunk mới trước rồi mới xóa chunk cũ, đồng thời embed batch kế tiếp song song?",
+    "relevant": ["vectorstore/upsert.py::index_batch"]
+  },
+  {
+    "query": "Hàm nào so sánh hash file để tìm file mới, file đã sửa và file đã bị xóa?",
+    "relevant": ["ingestion/pipeline.py::detect_changes"]
+  },
+  {
+    "query": "Hàm nào duyệt repository và bỏ qua thư mục trong danh sách ignore hoặc khớp .gitignore?",
+    "relevant": ["ingestion/pipeline.py::_iter_candidate_files"]
+  },
+  {
+    "query": "Generator nào chunk file song song bằng nhiều process rồi yield từng batch chunk?",
+    "relevant": ["ingestion/pipeline.py::iter_repository_chunks"]
+  },
+  {
+    "query": "Hàm nào kiểm tra index có cần cập nhật không, kể cả khi collection bị mất hoặc rỗng?",
+    "relevant": ["ingestion/check.py::check_index"]
+  },
+  {
+    "query": "Hàm nào chia một file Python thành các chunk theo cấu trúc AST?",
+    "relevant": ["ingestion/chunking/chunker.py::chunk_file"]
+  },
+  {
+    "query": "Hàm nào gộp các function hoặc method nhỏ liền kề thành một chunk?",
+    "relevant": ["ingestion/chunking/chunker.py::_merge_small_chunks"]
+  },
+  {
+    "query": "Hàm nào dựng header giàu ngữ cảnh gồm file, class, signature và docstring để gắn vào chunk?",
+    "relevant": ["ingestion/chunking/chunker.py::_build_enriched_header"]
+  },
+  {
+    "query": "Hàm nào trích xuất danh sách các hàm được gọi bên trong một node AST?",
+    "relevant": ["ingestion/chunking/ast_utils.py::extract_calls"]
+  },
+  {
+    "query": "Hàm nào thu thập vị trí các lỗi cú pháp ERROR và MISSING từ cây tree-sitter?",
+    "relevant": ["ingestion/chunking/ast_utils.py::collect_syntax_errors"]
+  },
+  {
+    "query": "Hàm nào cắt một đoạn văn bản dài thành nhiều phần theo giới hạn số token và trả về chỉ số dòng?",
+    "relevant": ["ingestion/chunking/splitter.py::split_large_text_ranges"]
+  },
+  {
+    "query": "Đếm số token của văn bản bằng tokenizer.json của model ONNX ở đâu?",
+    "relevant": [
+      "ingestion/chunking/splitter.py::count_tokens_approx",
+      "ingestion/chunking/splitter.py::get_tokenizer"
+    ]
+  },
+  {
+    "query": "Hàm nào đọc settings.yaml và cho phép ghi đè url Qdrant bằng biến môi trường?",
+    "relevant": [
+      "config/load_config.py::_read_settings",
+      "config/load_config.py::load_settings"
+    ]
+  },
+  {
+    "query": "Hàm nào dựng prompt gửi LLM sao cho vừa num_ctx trừ max_tokens và kèm lịch sử hội thoại?",
+    "relevant": ["chat/cli.py::build_messages"]
+  }
+]

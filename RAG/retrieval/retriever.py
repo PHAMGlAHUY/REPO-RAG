@@ -14,6 +14,7 @@ _settings = load_settings()
 RETRIEVAL_TOP_K = int((_settings.get('retrieval') or {}).get('top_k', 5))
 _RERANK_CFG = _settings.get('reranking') or {}
 RERANK_CANDIDATES = int(_RERANK_CFG.get('candidates', 30))
+RERANK_MIN_SCORE = None if _RERANK_CFG.get('min_score') is None else float(_RERANK_CFG['min_score'])
 CALLABLE_TYPES = ['function', 'method']
 _SCROLL_CAP = 1000
 
@@ -167,6 +168,10 @@ def _merge_parts(client: QdrantClient, chunks: list[RetrievedChunk]) -> list[Ret
         ordered = [parts[i] for i in sorted(parts)]
         c.content = '\n'.join([ordered[0].content, *(_strip_header(d.content) for d in ordered[1:])])
         c.metadata['merged_parts'] = len(ordered)
+        starts = [d.start_line for d in ordered if d.start_line is not None]
+        ends = [d.end_line for d in ordered if d.end_line is not None]
+        if starts and ends:
+            c.start_line, c.end_line = min(starts), max(ends)
         out.append(c)
     return out
 
@@ -240,6 +245,7 @@ def retrieve(
     if not query.strip():
         raise ValueError('query rỗng')
     top_k = RETRIEVAL_TOP_K if top_k is None else top_k
+    min_score = RERANK_MIN_SCORE if min_score is None else min_score
     if top_k <= 0:
         raise ValueError('top_k phải > 0')
     candidates = max(candidates or (RERANK_CANDIDATES if reranker else 20), top_k)

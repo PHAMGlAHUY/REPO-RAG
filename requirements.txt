@@ -7,3 +7,9 @@ fastembed
 fastapi
 uvicorn[standard]
 watchdog
+
+python eval_retrieval.py --data cases.json -k 5 -v --reranker "jina=preset:jina-v2-multi" --rrf both
+
+pip install -U huggingface_hub huggingface-cli download onnx-community/bge-reranker-v2-m3-ONNX --include "onnx/model_quantized.onnx" "tokenizer.json" --local-dir RAG/data/models/bge-reranker-v2-m3-onnx
+
+pip install -U "optimum[exporters]" onnx optimum-cli export onnx --model BAAI/bge-reranker-v2-m3 --task text-classification RAG/data/models/bge-reranker-v2-m3-onnx

@@ -229,6 +229,7 @@ def main() -> int:
     ap.add_argument("--batch-size", type=int, default=100)
     ap.add_argument("--workers", type=int, default=None)
     ap.add_argument("--reset", action="store_true", help="xóa collection + state + fingerprint rồi index lại từ đầu")
+    ap.add_argument("--cli", action="store_true", help="mở giao diện hỏi đáp sau khi index xong")
     args = ap.parse_args()
 
     t_start = time.perf_counter()
@@ -263,6 +264,9 @@ def main() -> int:
         return 1
 
     print_summary(time.perf_counter() - t_start)
+    if args.cli:
+        from cli import run_cli
+        run_cli(repo)
     return 0
 
 

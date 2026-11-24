@@ -38,10 +38,11 @@ Trả lời: Context chưa có đoạn code nào xử lý việc lưu xuống đ
 """
 
 REWRITE_SYSTEM_PROMPT = """\
-Bạn viết lại câu hỏi của người dùng thành MỘT câu truy vấn độc lập, đầy đủ ngữ cảnh \
-để tìm kiếm trong code repository. Dùng lịch sử hội thoại để thay thế đại từ/ngữ cảnh ngầm \
-(ví dụ "nó", "hàm đó"). Giữ nguyên tên kỹ thuật (hàm, class, file). \
-Chỉ trả về câu truy vấn, không giải thích gì thêm.
+Bạn chuyển câu hỏi của người dùng thành MỘT truy vấn tìm kiếm TIẾNG ANH, độc lập, đầy đủ ngữ cảnh, \
+để tìm trong code repository (tên hàm, class, file thường đặt bằng tiếng Anh). \
+Nếu có lịch sử hội thoại, dùng nó để thay đại từ/ngữ cảnh ngầm (ví dụ "nó", "hàm đó"). \
+Giữ nguyên tên kỹ thuật (hàm, class, file, biến). \
+Chỉ trả về đúng một dòng truy vấn tiếng Anh, không giải thích gì thêm.
 """
 
 _NO_ANSWER = {
@@ -57,6 +58,10 @@ _NO_ANSWER = {
 _VI_CHARS_RE = re.compile(r"[àáạảãâầấậẩẫăằắặẳẵèéẹẻẽêềếệểễìíịỉĩòóọỏõôồốộổỗơờớợởỡùúụủũưừứựửữỳýỵỷỹđ]", re.I)
 
 
+def is_vietnamese(text: str) -> bool:
+    return bool(_VI_CHARS_RE.search(text))
+
+
 def no_answer_text(question: str) -> str:
     """Câu trả lời cố định khi không có chunk, theo ngôn ngữ của câu hỏi."""
     return _NO_ANSWER["vi" if _VI_CHARS_RE.search(question) else "en"]
@@ -70,6 +75,7 @@ CHARS_PER_TOKEN = 2  # tiếng Việt có dấu + code: ~1,5-2,5 ký tự/token;
 MAX_HISTORY_MESSAGE_CHARS = 1_500
 PROMPT_OVERHEAD_CHARS = 300  # thẻ context, "Câu hỏi:", ký hiệu role...
 MIN_CHUNK_CHARS = 200  # chunk bị cắt ngắn hơn mức này thì bỏ
+MAX_CHUNK_CHARS = 3_000  # mỗi chunk tối đa chừng này ký tự để chừa chỗ cho các chunk khác
 
 # --------------------------------------------------------------------------- #
 # Context building
@@ -96,9 +102,11 @@ def _fence_for(text: str) -> str:
 def format_chunk(c: Any, index: int, max_chars: int | None = None) -> str:
     """Định dạng một RetrievedChunk thành block có header nguồn + code."""
     label = " ".join(filter(None, (c.chunk_type, c.qualified_name)))
-    header = f"[{index}] {c.file_path}:{c.start_line}-{c.end_line}" + (f" ({label})" if label else "")
+    path = c.file_path or "?"
+    lines = f":{c.start_line}-{c.end_line}" if c.start_line is not None and c.end_line is not None else ""
+    header = f"[{index}] {path}{lines}" + (f" ({label})" if label else "")
 
-    lang = getattr(c, "language", "") or PurePosixPath(c.file_path).suffix.lstrip(".")
+    lang = getattr(c, "language", "") or PurePosixPath(path).suffix.lstrip(".")
     lang = _LANG_ALIASES.get(lang, lang)
 
     text = strip_chunk_header(c.content)
@@ -112,6 +120,8 @@ def format_chunk(c: Any, index: int, max_chars: int | None = None) -> str:
 
 
 def _overlap(a: Any, b: Any) -> bool:
+    if None in (a.file_path, a.start_line, a.end_line, b.start_line, b.end_line):
+        return False
     return a.file_path == b.file_path and a.start_line <= b.end_line and b.start_line <= a.end_line
 
 
@@ -121,24 +131,39 @@ def _candidates(chunks: Iterable[Any]) -> list[Any]:
     parents = [c.parent for c in chunks if hasattr(getattr(c, "parent", None), "content")]
     calls = [r for c in chunks for r in (getattr(c, "related_calls", None) or []) if hasattr(r, "content")]
     out: list[Any] = []
-    for c in (*chunks, *parents, *calls):
+    for c in chunks:
+        if not any(_overlap(c, o) for o in out):
+            out.append(c)
+    main_ids = {getattr(o, "id", None) for o in out}
+    # parent (class) bao trùm method nên chỉ so trùng với parent khác, không so với chunk chính
+    parent_out: list[Any] = []
+    for c in parents:
+        if c.id in main_ids or any(c.id == p.id or _overlap(c, p) for p in parent_out):
+            continue
+        parent_out.append(c)
+    out.extend(parent_out)
+    for c in calls:
         if not any(_overlap(c, o) for o in out):
             out.append(c)
     return out
 
 
-def build_context(chunks: Iterable[Any], max_chars: int = 12_000) -> tuple[str, list[Any]]:
+def build_context(
+    chunks: Iterable[Any], max_chars: int = 12_000, max_chunk_chars: int = MAX_CHUNK_CHARS
+) -> tuple[str, list[Any]]:
     """Ghép chunk vào context trong ngân sách ký tự. Trả về (context, các chunk đã dùng)."""
     blocks: list[str] = []
     used: list[Any] = []
     total = 0
     for c in _candidates(chunks):
         room = max_chars - total - 2
-        block = format_chunk(c, len(used) + 1)
+        block = format_chunk(c, len(used) + 1, max_chars=max_chunk_chars)
         if len(block) > room:
-            if used or room < MIN_CHUNK_CHARS:
+            if room < MIN_CHUNK_CHARS:
                 continue
-            block = format_chunk(c, 1, max_chars=room)  # chunk đầu quá dài: cắt bớt
+            block = format_chunk(c, len(used) + 1, max_chars=room - 16)  # cắt bớt cho vừa chỗ còn lại
+            if len(block) > room:
+                continue
         blocks.append(block)
         used.append(c)
         total += len(block) + 2
@@ -147,6 +172,8 @@ def build_context(chunks: Iterable[Any], max_chars: int = 12_000) -> tuple[str, 
 
 def invalid_citations(text: str, n_chunks: int) -> list[int]:
     """Các chỉ số trích dẫn [k] nằm ngoài 1..n_chunks."""
+    text = re.sub(r"```.*?```", "", text, flags=re.S)
+    text = re.sub(r"`[^`\n]*`", "", text)
     return sorted({k for k in map(int, re.findall(r"\[(\d+)\]", text)) if not 1 <= k <= n_chunks})
 
 
@@ -216,7 +243,8 @@ def build_rewrite_messages(
     """Dựng messages để viết lại câu hỏi thành truy vấn độc lập."""
     recent = trim_history(history, max_history, None, max_message_chars)
     convo = "\n".join(f"{m['role']}: {m['content']}" for m in recent)
-    user = f"Lịch sử hội thoại:\n{convo}\n\nCâu hỏi mới: {question}\n\nTruy vấn độc lập:"
+    head = f"Lịch sử hội thoại:\n{convo}\n\n" if convo else ""
+    user = f"{head}Câu hỏi mới: {question}\n\nTruy vấn tiếng Anh:"
     return [
         {"role": "system", "content": REWRITE_SYSTEM_PROMPT},
         {"role": "user", "content": user},

@@ -1,0 +1,12 @@
+base k=5, cand=30
+Pool recall@30: 29/30 (96.7%)
+config  Hit@5  MRR     Recall  nDCG    time(s)
+none  0.800   0.728   0.767   0.715   0.0
+
+miniLm k=5, cand=30
+Pool recall@30: 29/30 (96.7%)
+config  Hit@5  MRR     Recall  nDCG    time(s)
+none    0.800   0.728   0.767   0.715   0.0
+minilm  0.633   0.519   0.583   0.519   103.2
+
+python eval_retrieval.py --data cases.json -k 5 --reranker "jina=preset:jina-v2-multi" --rrf both --rrf-k 60 --w-ret 1 --w-rr 1

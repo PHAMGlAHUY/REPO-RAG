@@ -59,20 +59,22 @@ llm:
   provider: ollama
   model_name: qwen2.5:3b
   base_url: http://localhost:11434
-  temperature: 0.2
-  max_tokens: 1024
-  num_ctx: 8192                 # cửa sổ context của Ollama; prompt được tự cắt cho vừa (num_ctx - max_tokens)
+  num_ctx: 4096                 # cửa sổ context của Ollama; prompt được tự cắt cho vừa (num_ctx - max_tokens)
+  max_tokens: 512               # trần số token sinh ra
+  temperature: 0.1
+  repeat_penalty: 1.0           # code lặp lại tên biến/hàm nhiều, không nên phạt lặp
   keep_alive: 30m               # giữ model trong bộ nhớ sau lần gọi cuối
   timeout: 180                  # request timeout in seconds (lần gọi đầu phải nạp model nên cần dài)
 
 # Cau hinh RAG
 retrieval:
-  top_k: 10                     # số chunk trả về để làm context cho LLM
+  top_k: 6                      # số chunk trả về để làm context cho LLM (prompt chỉ đủ chỗ cho vài chunk)
 
 # Cau hinh reranking (cross-encoder chạy ONNX trên CPU)
 reranking:
-  model: cross-encoder/ms-marco-MiniLM-L-6-v2    # chỉ để tham khảo; tải bản ONNX từ repo này
+  model: jina-v2-multi    # chỉ để tham khảo; tải bản ONNX từ repo này
   onnx_dir: data/models/ms-marco-MiniLM-L-6-v2-onnx   # chứa tokenizer.json và thư mục onnx/
   onnx_file: onnx/model_quint8_avx2.onnx
   max_length: 384               # cắt cặp (query, chunk) tối đa số token này
+  min_score: -8.0               # bỏ chunk có rerank_score thấp hơn mức này (null = tắt); chỉnh theo điểm thực tế
   candidates: 20                # số chunk lấy từ retrieve để rerank, sau đó giữ retrieval.top_k chunk tốt nhất

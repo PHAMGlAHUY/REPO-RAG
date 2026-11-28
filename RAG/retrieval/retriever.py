@@ -1,27 +1,33 @@
+import json
+import logging
+import os
+import urllib.error
+import urllib.request
 from collections import Counter
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Callable
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import FieldCondition, Filter, MatchAny
 
-from config.load_config import load_settings, _resolve
+from config.load_config import load_settings
 from vectorstore.qdrant import VECTOR_DB_COLLECTION
 from vectorstore.search import build_filter, eq, exact_lookup, search
 
 _settings = load_settings()
 RETRIEVAL_TOP_K = int((_settings.get('retrieval') or {}).get('top_k', 5))
 _RERANK_CFG = _settings.get('reranking') or {}
-RERANK_CANDIDATES = int(_RERANK_CFG.get('candidates', 30))
+RERANK_ENABLED = bool(_RERANK_CFG.get('enabled', True))
+RERANK_CANDIDATES = int(_RERANK_CFG.get('candidates', 20))
 RERANK_MIN_SCORE = None if _RERANK_CFG.get('min_score') is None else float(_RERANK_CFG['min_score'])
 CALLABLE_TYPES = ['function', 'method']
 _SCROLL_CAP = 1000
 
+log = logging.getLogger(__name__)
+
 # (query, chunks) -> điểm cho từng chunk, cùng thứ tự
 RerankerFn = Callable[[str, list['RetrievedChunk']], list[float]]
 
-# tên payload do chunker/index ghi; phần còn lại nằm trong metadata
 _PAYLOAD_FIELDS = (
     'file_path', 'qualified_name', 'qualified_names', 'name', 'names', 'chunk_type', 'start_line', 'end_line',
     'is_async', 'parent_class_id', 'part_index', 'total_parts', 'calls',
@@ -35,7 +41,7 @@ class RetrievedChunk:
     content: str
     score: float | None = None
     rerank_score: float | None = None
-    exact: bool = False  # khớp chính xác tên (exact_lookup), không có score
+    exact: bool = False  # khớp chính xác tên (exact_lookup)
     file_path: str | None = None
     qualified_name: str | None = None
     qualified_names: list[str] = field(default_factory=list)
@@ -50,7 +56,6 @@ class RetrievedChunk:
     total_parts: int | None = None
     calls: list[str] = field(default_factory=list)
     metadata: dict = field(default_factory=dict)
-    parent: 'RetrievedChunk | None' = None
     related_calls: list['RetrievedChunk'] = field(default_factory=list)
 
     def __post_init__(self):
@@ -70,46 +75,64 @@ class RetrievedChunk:
         return cls(id=str(p.id), content=content, score=getattr(p, 'score', None), metadata=payload, **known)
 
 
-def onnx_reranker(model: str | None = None, batch_size: int = 16) -> RerankerFn:
-    """Cross-encoder chạy bằng onnxruntime (CPU). `model` (tuỳ chọn) ghi đè reranking.onnx_file."""
-    import os
-    import numpy as np
-    import onnxruntime as ort
-    from tokenizers import Tokenizer
+class JinaReranker:
+    """Gọi Jina Rerank API (POST /v1/rerank). Dùng như RerankerFn: reranker(query, chunks) -> list[float]."""
 
-    cfg = _RERANK_CFG
-    if not cfg.get('onnx_dir'):
-        raise ValueError("reranking.onnx_dir chưa được cấu hình")
-    base = Path(_resolve(cfg['onnx_dir']))
+    def __init__(self, api_key: str, model: str = 'jina-reranker-v3.5', url: str = 'https://api.jina.ai/v1/rerank',
+                 timeout: float = 10, max_doc_length: int | None = None, retries: int = 1):
+        self.api_key, self.model, self.url = api_key, model, url
+        self.timeout, self.max_doc_length, self.retries = timeout, max_doc_length, retries
 
-    so = ort.SessionOptions()
-    so.intra_op_num_threads = os.cpu_count() or 4
-    sess = ort.InferenceSession(str(base / (model or cfg['onnx_file'])), so, providers=['CPUExecutionProvider'])
-    input_names = {i.name for i in sess.get_inputs()}
+    def _post(self, body: dict) -> dict:
+        req = urllib.request.Request(
+            self.url, data=json.dumps(body).encode('utf-8'), method='POST',
+            headers={'Content-Type': 'application/json', 'Authorization': f'Bearer {self.api_key}'},
+        )
+        last: Exception | None = None
+        for _ in range(self.retries + 1):
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    return json.loads(resp.read().decode('utf-8'))
+            except urllib.error.HTTPError as e:
+                detail = e.read().decode('utf-8', 'replace')[:300]
+                last = RuntimeError(f'Jina rerank HTTP {e.code}: {detail}')
+                if e.code not in (429, 500, 502, 503, 504):
+                    break
+            except (urllib.error.URLError, TimeoutError) as e:
+                last = RuntimeError(f'Jina rerank lỗi mạng: {e}')
+        raise last  # type: ignore[misc]
 
-    tok = Tokenizer.from_file(str(base / 'tokenizer.json'))
-    tok.enable_truncation(max_length=int(cfg.get('max_length', 384)))
-    pad_token = next((t for t in ('[PAD]', '<pad>') if tok.token_to_id(t) is not None), '[PAD]')
-    tok.enable_padding(pad_id=tok.token_to_id(pad_token) or 0, pad_token=pad_token)
-
-    def rerank(query: str, chunks: list[RetrievedChunk]) -> list[float]:
-        texts = [f'{c.qualified_name or ""}\n{c.content}' for c in chunks]
-        scores: list[float] = []
-        for s in range(0, len(texts), batch_size):
-            enc = tok.encode_batch([(query, t) for t in texts[s:s + batch_size]])
-            feed = {
-                'input_ids': np.array([e.ids for e in enc], dtype=np.int64),
-                'attention_mask': np.array([e.attention_mask for e in enc], dtype=np.int64),
-                'token_type_ids': np.array([e.type_ids for e in enc], dtype=np.int64),
-            }
-            out = sess.run(None, {k: v for k, v in feed.items() if k in input_names})[0]
-            scores.extend(np.asarray(out, dtype=np.float32).reshape(len(enc), -1)[:, -1].tolist())
+    def __call__(self, query: str, chunks: list['RetrievedChunk']) -> list[float]:
+        if not chunks:
+            return []
+        body = {
+            'model': self.model,
+            'query': query,
+            'top_n': len(chunks),
+            'documents': [c.content for c in chunks],
+            'return_documents': False,
+        }
+        if self.max_doc_length:
+            body['max_doc_length'] = self.max_doc_length
+        results = self._post(body).get('results') or []
+        scores = [float('-inf')] * len(chunks)
+        for r in results:
+            i = r.get('index')
+            if isinstance(i, int) and 0 <= i < len(chunks):
+                scores[i] = float(r.get('relevance_score', float('-inf')))
         return scores
 
-    return rerank
 
-
-cross_encoder_reranker = onnx_reranker  # tên cũ
+def default_reranker() -> JinaReranker | None:
+    """Tạo JinaReranker từ settings.reranking; trả None nếu tắt hoặc thiếu API key."""
+    if not RERANK_ENABLED:
+        return None
+    api_key = os.environ.get(_RERANK_CFG.get('api_key_env') or 'JINA_API_KEY')
+    if not api_key:
+        log.warning('Không có JINA_API_KEY -> bỏ qua rerank')
+        return None
+    kwargs = {k: _RERANK_CFG[k] for k in ('model', 'url', 'timeout', 'max_doc_length') if _RERANK_CFG.get(k) is not None}
+    return JinaReranker(api_key, **kwargs)
 
 
 def _dedup(chunks: list[RetrievedChunk], max_per_file: int | None = None) -> list[RetrievedChunk]:
@@ -146,7 +169,7 @@ def _strip_header(content: str) -> str:
 
 
 def _merge_parts(client: QdrantClient, chunks: list[RetrievedChunk]) -> list[RetrievedChunk]:
-    """Chunk nhiều part -> lấy đủ các part cùng hàm/class, ghép thành một chunk (đặt tại vị trí part tốt nhất)."""
+    """Chunk nhiều part -> lấy đủ các part cùng hàm/class và ghép thành một chunk."""
     out: list[RetrievedChunk] = []
     done: set[tuple] = set()
     for c in chunks:
@@ -157,14 +180,15 @@ def _merge_parts(client: QdrantClient, chunks: list[RetrievedChunk]) -> list[Ret
         if key in done:
             continue
         done.add(key)
+
         flt = Filter(must=[eq('file_path', c.file_path), eq('qualified_name', c.qualified_name),
                            eq('chunk_type', c.chunk_type)])
-        parts: dict[int, RetrievedChunk] = {}
+        parts = {c.part_index or 1: c}
         for p in _scroll_all(client, flt, cap=200):
             d = RetrievedChunk.from_point(p)
             if d.total_parts == c.total_parts and d.part_index is not None:
                 parts.setdefault(d.part_index, d)
-        parts.setdefault(c.part_index or 1, c)
+
         ordered = [parts[i] for i in sorted(parts)]
         c.content = '\n'.join([ordered[0].content, *(_strip_header(d.content) for d in ordered[1:])])
         c.metadata['merged_parts'] = len(ordered)
@@ -176,35 +200,13 @@ def _merge_parts(client: QdrantClient, chunks: list[RetrievedChunk]) -> list[Ret
     return out
 
 
-def _expand_parents(client: QdrantClient, chunks: list[RetrievedChunk]) -> None:
-    parent_ids: set[str] = set()
-    for chunk in chunks:
-        if chunk.chunk_type == 'method' and chunk.parent_class_id:
-            parent_ids.add(str(chunk.parent_class_id))
-    ids = sorted(parent_ids)
-    if not ids:
-        return
-
-    parents = {
-        str(p.id): RetrievedChunk.from_point(p)
-        for p in client.retrieve(VECTOR_DB_COLLECTION, ids=ids, with_payload=True)
-    }
-    for chunk in chunks:
-        if chunk.chunk_type == 'method' and chunk.parent_class_id is not None:
-            chunk.parent = parents.get(str(chunk.parent_class_id))
-
-
-def _locality(d: RetrievedChunk, c: RetrievedChunk) -> tuple[bool, bool, bool]:
-    cls = lambda x: (x.qualified_name or '').rpartition('.')[0]
-    folder = lambda x: (x.file_path or '').rpartition('/')[0]
-    return d.file_path == c.file_path, cls(d) == cls(c), folder(d) == folder(c)
-
-
 def _expand_calls(client: QdrantClient, chunks: list[RetrievedChunk], max_related: int = 2) -> None:
+    """Gắn định nghĩa của các hàm được gọi vào chunk.related_calls (ưu tiên cùng file)."""
     wanted = [[call.split('(')[0].rpartition('.')[2].strip() for call in c.calls] for c in chunks]
     names = sorted({n for ns in wanted for n in ns if n})
     if not names:
         return
+
     flt = Filter(must=[
         FieldCondition(key='names', match=MatchAny(any=names)),
         FieldCondition(key='chunk_type', match=MatchAny(any=CALLABLE_TYPES)),
@@ -217,11 +219,12 @@ def _expand_calls(client: QdrantClient, chunks: list[RetrievedChunk], max_relate
             continue
         for n in d.names:
             by_name.setdefault(n, []).append(d)
+
     for c, ns in zip(chunks, wanted):
         related: dict[str, RetrievedChunk] = {}
         for n in ns:
             if options := by_name.get(n):
-                best = max(options, key=lambda d: _locality(d, c))
+                best = max(options, key=lambda d: d.file_path == c.file_path)
                 related[best.id] = best
         c.related_calls = list(related.values())[:max_related]
 
@@ -230,49 +233,64 @@ def retrieve(
     client: QdrantClient,
     query: str,
     top_k: int | None = None,
-    candidates: int | None = None,  # mặc định 20; reranking.candidates khi có reranker
+    candidates: int | None = None,  # số ứng viên lấy từ search; mặc định 20, hoặc reranking.candidates khi rerank
     mode: str = 'auto',  # 'auto' | 'hybrid' | 'dense' | 'sparse'
     chunk_type: str | list[str] | None = None,
     file_path: str | None = None,
     exclude_syntax_errors: bool = False,
     max_per_file: int | None = None,
-    min_score: float | None = None,  # chỉ áp dụng cho rerank_score (cần reranker); chunk khớp chính xác luôn được giữ
-    reranker: RerankerFn | None = None,
-    expand_parent: bool = False,
+    min_score: float | None = None,  # chỉ áp dụng cho rerank_score; chunk khớp chính xác luôn được giữ
+    rerank: bool = True,  # False để tắt rerank cho lần gọi này
+    reranker: RerankerFn | None = None,  # mặc định: JinaReranker theo settings
     merge_parts: bool = False,
     expand_calls: bool = False,
 ) -> list[RetrievedChunk]:
     if not query.strip():
         raise ValueError('query rỗng')
     top_k = RETRIEVAL_TOP_K if top_k is None else top_k
-    min_score = RERANK_MIN_SCORE if min_score is None else min_score
     if top_k <= 0:
         raise ValueError('top_k phải > 0')
+    if rerank and reranker is None:
+        reranker = default_reranker()
+    elif not rerank:
+        reranker = None
+    min_score = RERANK_MIN_SCORE if min_score is None else min_score
     candidates = max(candidates or (RERANK_CANDIDATES if reranker else 20), top_k)
 
+    # 1. Lấy ứng viên: exact (chỉ mode auto) đứng trước, rồi đến search
     flt = build_filter(chunk_type, file_path, exclude_syntax_errors)
-    points = search(client, query, limit=candidates, prefetch_limit=2 * candidates, mode=mode, flt=flt)
-    exact = exact_lookup(client, query, top_k, flt) if mode == 'auto' else []
-
-    exact_chunks = [RetrievedChunk.from_point(p) for p in exact]
+    points = search(client, query, limit=candidates, mode=mode, flt=flt)
+    exact_points = exact_lookup(client, query, top_k, flt) if mode == 'auto' else []
+    exact_chunks = [RetrievedChunk.from_point(p) for p in exact_points]
     for c in exact_chunks:
         c.exact = True
     chunks = _dedup([*exact_chunks, *(RetrievedChunk.from_point(p) for p in points)])
 
+    # 2. Rerank: chunk exact giữ đầu danh sách, phần còn lại xếp theo rerank_score.
+    #    Lỗi API -> giữ nguyên thứ tự search (không làm hỏng cả truy vấn).
     if reranker and chunks:
-        for c, s in zip(chunks, reranker(query, chunks)):
-            c.rerank_score = s
         pinned = [c for c in chunks if c.exact]
-        rest = sorted((c for c in chunks if not c.exact), key=lambda c: c.rerank_score, reverse=True)
-        chunks = pinned + rest
-        if min_score is not None:
-            chunks = [c for c in chunks if c.exact or c.rerank_score >= min_score]
+        rest = [c for c in chunks if not c.exact]
+        if rest:
+            try:
+                scores = reranker(query, rest)
+                if len(scores) != len(rest):
+                    raise ValueError('reranker trả sai số lượng điểm')
+                for c, s in zip(rest, scores):
+                    c.rerank_score = s
+                if min_score is not None:
+                    rest = [c for c in rest if c.rerank_score >= min_score]
+                rest.sort(key=lambda c: c.rerank_score, reverse=True)
+            except Exception as e:
+                log.warning('Rerank thất bại, dùng thứ tự search: %s', e)
+            chunks = pinned + rest
+
+    # 3. Chọn kết quả cuối
     chunks = _dedup(chunks, max_per_file)[:top_k]
 
+    # 4. Bổ sung tùy chọn
     if chunks and merge_parts:
         chunks = _merge_parts(client, chunks)
-    if chunks and expand_parent:
-        _expand_parents(client, chunks)
     if chunks and expand_calls:
         _expand_calls(client, chunks)
     return chunks

@@ -1,7 +1,6 @@
 version: 1
-disable_existing_loggers: false  # không tắt logger của thư viện (httpx, qdrant_client, ...)
+disable_existing_loggers: false
 
-# Định dạng log. Ví dụ: [2026-01-15 09:32:10] INFO - ingestion - Loaded 152 records
 formatters:
   simple:
     format: '[%(asctime)s] %(levelname)s - %(name)s - %(message)s'
@@ -15,47 +14,23 @@ handlers:
     stream: ext://sys.stdout
 
   file:
-    class: logging.FileHandler  # không dùng Rotating vì ingestion chạy nhiều process cùng ghi một file
+    class: logging.FileHandler
     level: DEBUG
     formatter: simple
     filename: logs/application.log
     encoding: utf-8
-    delay: true  # chỉ tạo file khi có dòng log đầu tiên
+    delay: true
 
-# Logger theo từng module
 loggers:
   ingestion:
     level: DEBUG
     handlers: [console, file]
     propagate: no
 
-  embedding: &app_logger
+  embedding:
     level: INFO
     handlers: [console, file]
     propagate: no
-
-  scoring:
-    <<: *app_logger
-  vector_database:
-    <<: *app_logger
-  llm:
-    <<: *app_logger
-  retrieval:
-    <<: *app_logger
-  reranking:
-    <<: *app_logger
-  chat:
-    <<: *app_logger
-
-  # Thư viện bên thứ ba: chỉ hiện cảnh báo trở lên
-  httpx:
-    level: WARNING
-  httpcore:
-    level: WARNING
-  urllib3:
-    level: WARNING
-  huggingface_hub:
-    level: WARNING
 
 root:
   level: INFO

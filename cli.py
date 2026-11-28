@@ -14,7 +14,7 @@ import httpx
 
 from config.load_config import load_settings
 from ingestion.chunking.splitter import count_tokens_approx
-from retrieval.retriever import RetrievedChunk, onnx_reranker, retrieve
+from retrieval.retriever import RetrievedChunk, default_reranker, retrieve
 from vectorstore.qdrant import VECTOR_DB_COLLECTION, close_qdrant_client, get_qdrant_client
 
 logger = logging.getLogger('chat')
@@ -236,7 +236,8 @@ def _answer(question: str, st: _State, client, rerank_fn, llm_cfg: dict, llm_ok:
         client, question,
         top_k=st.top_k,
         mode=st.mode,
-        reranker=rerank_fn if st.rerank else None,
+        rerank=st.rerank and rerank_fn is not None,
+        reranker=rerank_fn,
         merge_parts=True,
         expand_calls=True,
     )
@@ -294,10 +295,12 @@ def run_cli(repo: Path | None = None, top_k: int | None = None) -> None:
 
         rerank_fn = None
         try:
-            rerank_fn = onnx_reranker()
+            rerank_fn = default_reranker()  # Jina API; None nếu tắt trong config hoặc thiếu API key
         except Exception as e:
+            print(f"(Không tạo được reranker: {e})")
+        if rerank_fn is None:
             st.rerank = False
-            print(f"(Không nạp được reranker, tắt rerank: {e})")
+            print("(Rerank tắt: kiểm tra reranking.enabled và biến môi trường JINA_API_KEY)")
 
         llm_ok = _ollama_ready(llm_cfg.get('base_url', 'http://localhost:11434'))
         if llm_ok:

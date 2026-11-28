@@ -1,20 +1,20 @@
 import re
+from concurrent.futures import ThreadPoolExecutor
 from functools import lru_cache
-from typing import Any, cast
 
 from qdrant_client import QdrantClient
 from qdrant_client.models import (
-    FieldCondition, Filter, MatchAny, MatchValue, Prefetch, QuantizationSearchParams,
-    Rrf, RrfQuery, SearchParams, SparseVector,
+    FieldCondition, Filter, MatchAny, MatchValue, QuantizationSearchParams,
+    SearchParams, SparseVector,
 )
 
 from embedding.embedder import embed_query
 from vectorstore.index import get_sparse_embedder, to_sparse_vector
 from vectorstore.qdrant import DENSE_VECTOR_NAME, SPARSE_VECTOR_NAME, VECTOR_DB_COLLECTION
 
-RRF_K = 60
-_WEIGHTS = {'hybrid': (1, 1), 'dense': (1, 0), 'sparse': (0, 1)}  # (dense, sparse)
+_WEIGHTS = {'hybrid': (1, 1), 'dense': (1, 0), 'sparse': (0, 1)}  # (dense, sparse): số kết quả lấy xen kẽ mỗi lượt
 _DENSE_PARAMS = SearchParams(quantization=QuantizationSearchParams(rescore=True, oversampling=2.0))
+_POOL = ThreadPoolExecutor(max_workers=2)  # chạy truy vấn dense và sparse song song
 
 _CAMEL_1 = re.compile(r'([a-z0-9])([A-Z])')
 _CAMEL_2 = re.compile(r'([A-Z]+)([A-Z][a-z])')
@@ -75,16 +75,53 @@ def build_filter(
     return Filter(must=must or None, must_not=must_not) if must or must_not else None
 
 
+def _search_dense(client: QdrantClient, query: str, limit: int, flt: Filter | None) -> list:
+    return client.query_points(
+        collection_name=VECTOR_DB_COLLECTION, query=list(_dense(query)), using=DENSE_VECTOR_NAME,
+        query_filter=flt, search_params=_DENSE_PARAMS, limit=limit, with_payload=True,
+    ).points
+
+
+def _search_sparse(client: QdrantClient, query: str, limit: int, flt: Filter | None) -> list:
+    return client.query_points(
+        collection_name=VECTOR_DB_COLLECTION, query=_sparse(expand_identifier_query(query)),
+        using=SPARSE_VECTOR_NAME, query_filter=flt, limit=limit, with_payload=True,
+    ).points
+
+
+def _merge_weighted(dense: list, sparse: list, wd: int, ws: int, limit: int) -> list:
+    """Gộp hai danh sách bằng cách lấy xen kẽ (wd điểm dense, rồi ws điểm sparse mỗi lượt), bỏ trùng id.
+    Không dùng RRF: thứ tự cuối cùng do reranker quyết định; thứ tự này chỉ để chọn ứng viên."""
+    out, seen = [], set()
+    di = si = 0
+    while len(out) < limit and (di < len(dense) or si < len(sparse)):
+        for _ in range(wd):
+            if di < len(dense):
+                p = dense[di]
+                di += 1
+                if p.id not in seen:
+                    seen.add(p.id)
+                    out.append(p)
+        for _ in range(ws):
+            if si < len(sparse):
+                p = sparse[si]
+                si += 1
+                if p.id not in seen:
+                    seen.add(p.id)
+                    out.append(p)
+    return out[:limit]
+
+
 def search(
     client: QdrantClient,
     query: str,
     limit: int = 10,
-    prefetch_limit: int = 50,
     mode: str = 'auto',  # 'auto' | 'hybrid' | 'dense' | 'sparse'
     flt: Filter | None = None,
 ):
-    """Điểm dựng truy vấn duy nhất: dense + sparse, RRF có trọng số ngay trong Qdrant (cần qdrant >= 1.16).
-    auto: query dạng định danh -> nghiêng sparse; query mô tả tự nhiên -> nghiêng dense."""
+    """Dense + sparse chạy song song rồi gộp xen kẽ theo trọng số (không RRF).
+    auto: query dạng định danh -> nghiêng sparse; query mô tả tự nhiên -> nghiêng dense.
+    Lưu ý: score của dense và sparse khác thang đo nên không so sánh trực tiếp được."""
     if mode == 'auto':
         wd, ws = (1, 3) if is_identifier_query(query) else (2, 1)
     elif mode in _WEIGHTS:
@@ -92,29 +129,14 @@ def search(
     else:
         raise ValueError(f"mode must be 'auto', 'hybrid', 'dense' or 'sparse', got {mode!r}")
 
-    if not ws:  # chỉ dense: không cần RRF
-        return client.query_points(
-            collection_name=VECTOR_DB_COLLECTION, query=list(_dense(query)), using=DENSE_VECTOR_NAME,
-            query_filter=flt, search_params=_DENSE_PARAMS, limit=limit, with_payload=True,
-        ).points
-    if not wd:  # chỉ sparse
-        return client.query_points(
-            collection_name=VECTOR_DB_COLLECTION, query=_sparse(expand_identifier_query(query)),
-            using=SPARSE_VECTOR_NAME, query_filter=flt, limit=limit, with_payload=True,
-        ).points
+    if not ws:
+        return _search_dense(client, query, limit, flt)
+    if not wd:
+        return _search_sparse(client, query, limit, flt)
 
-    return client.query_points(
-        collection_name=VECTOR_DB_COLLECTION,
-        prefetch=[
-            Prefetch(query=list(_dense(query)), using=DENSE_VECTOR_NAME, limit=prefetch_limit,
-                     filter=flt, params=_DENSE_PARAMS),
-            Prefetch(query=_sparse(expand_identifier_query(query)), using=SPARSE_VECTOR_NAME,
-                     limit=prefetch_limit, filter=flt),
-        ],
-        query=cast(Any, RrfQuery(rrf=Rrf(weights=[wd, ws], k=RRF_K))),
-        limit=limit,
-        with_payload=True,
-    ).points
+    sparse_future = _POOL.submit(_search_sparse, client, query, limit, flt)
+    dense = _search_dense(client, query, limit, flt)
+    return _merge_weighted(dense, sparse_future.result(), wd, ws, limit)
 
 
 def exact_lookup(client: QdrantClient, query: str, limit: int, flt: Filter | None = None) -> list:

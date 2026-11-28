@@ -223,6 +223,9 @@ def reset_index(state_path: Path) -> None:
 
 
 def main() -> int:
+    import os
+    print("JINA_API_KEY có:", bool(os.environ.get("JINA_API_KEY")))
+
     ap = argparse.ArgumentParser(description="Kiểm tra + nạp index (có đo thời gian từng bước)")
     ap.add_argument("-s", "--source", help="đường dẫn repo cần index")
     ap.add_argument("--state-file", default=None, help="mặc định lấy theo config (ingestion.state_file)")

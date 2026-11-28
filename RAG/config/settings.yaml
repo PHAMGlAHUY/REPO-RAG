@@ -6,8 +6,8 @@ app:
 
 ingestion:
   max_chunk_tokens: 400
-  min_chunk_tokens: 30          # chunk có phần thân nhỏ hơn mức này sẽ được gộp với chunk liền kề (0 = tắt gộp)
-  max_file_size_mb: 2           # bỏ qua file lớn hơn mức này
+  min_chunk_tokens: 30
+  max_file_size_mb: 2
   state_file: data/index_state.json
   supported_extensions:
     - '.py'
@@ -26,13 +26,14 @@ ingestion:
     - ".mypy_cache"
     - ".tox"
     - "site-packages"
-  ignore_path_parts:            # bỏ qua file nằm trong thư mục có tên này (ở bất kỳ cấp nào)
+  ignore_path_parts:
     - "migrations"
 
 # Cau hinh embedding (chạy ONNX bằng onnxruntime, tokenizer lấy từ onnx_dir/tokenizer.json)
 embedding:
-  model: BAAI/bge-m3            # chỉ dùng để ghi log và fingerprint của index
-  device: cpu                   # auto | cpu | cuda (cuda cần onnxruntime-gpu)
+  model: BAAI/bge-m3
+  device: cpu
+  onnx_repo: <username>/bge-m3-onnx-int8
   onnx_dir: data/models/bge-m3-onnx
   onnx_file: onnx/model_int8.onnx
   max_seq_length: 512
@@ -41,40 +42,42 @@ embedding:
 # Cau hinh vector database luu tru chunk + embedding
 vector_database:
   type: qdrant
-  url: http://localhost:6333    # địa chỉ Qdrant server (đổi host/port thì sửa ở đây)
-  api_key: null                 # nếu dùng Qdrant Cloud
+  url: http://localhost:6333
+  api_key: null
   collection_name: repo
-  distance: cosine              # cosine | dot | euclid
-  timeout: 30                   # connection timeout in seconds
+  distance: cosine
+  timeout: 30
   upsert_batch_size: 64
   hnsw_m: 16
   hnsw_ef_construct: 100
   fingerprint_path: data/index_fingerprint.json
-  chunker_version: 2            # tăng khi đổi cách chunk/payload -> bắt buộc index lại (run.py --reset)
+  chunker_version: 2
   sparse_model: Qdrant/bm25
-  sparse_disable_stemmer: false # true = tắt stemmer/stopword tiếng Anh của BM25 (bắt buộc index lại khi đổi)
+  sparse_disable_stemmer: false
 
 # Cau hinh model LLM
 llm:
   provider: ollama
   model_name: qwen2.5:3b
   base_url: http://localhost:11434
-  num_ctx: 4096                 # cửa sổ context của Ollama; prompt được tự cắt cho vừa (num_ctx - max_tokens)
-  max_tokens: 512               # trần số token sinh ra
+  num_ctx: 4096
+  max_tokens: 512
   temperature: 0.1
-  repeat_penalty: 1.0           # code lặp lại tên biến/hàm nhiều, không nên phạt lặp
-  keep_alive: 30m               # giữ model trong bộ nhớ sau lần gọi cuối
-  timeout: 180                  # request timeout in seconds (lần gọi đầu phải nạp model nên cần dài)
+  repeat_penalty: 1.0
+  keep_alive: 30m
+  timeout: 180
 
 # Cau hinh RAG
 retrieval:
-  top_k: 6                      # số chunk trả về để làm context cho LLM (prompt chỉ đủ chỗ cho vài chunk)
+  top_k: 6
 
-# Cau hinh reranking (cross-encoder chạy ONNX trên CPU)
+# Rerank qua Jina API (key lay tu bien moi truong api_key_env)
 reranking:
-  model: jina-v2-multi    # chỉ để tham khảo; tải bản ONNX từ repo này
-  onnx_dir: data/models/ms-marco-MiniLM-L-6-v2-onnx   # chứa tokenizer.json và thư mục onnx/
-  onnx_file: onnx/model_quint8_avx2.onnx
-  max_length: 384               # cắt cặp (query, chunk) tối đa số token này
-  min_score: -8.0               # bỏ chunk có rerank_score thấp hơn mức này (null = tắt); chỉnh theo điểm thực tế
-  candidates: 20                # số chunk lấy từ retrieve để rerank, sau đó giữ retrieval.top_k chunk tốt nhất
+  enabled: true
+  model: jina-reranker-v3.5
+  url: https://api.jina.ai/v1/rerank
+  candidates: 20        # so ung vien lay tu Qdrant truoc khi rerank
+  min_score: null       # bo chunk co relevance_score thap hon (null = khong loc)
+  max_doc_length: 2048  # token toi da moi document (1-8192)
+  timeout: 10
+  api_key_env: JINA_API_KEY
